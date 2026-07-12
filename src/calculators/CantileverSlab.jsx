@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { C, UI, MONO, fmt, sColor } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX } from "../components/ui.jsx";
+import { C, UI, MONO, SERIF, fmt, sColor } from "../theme.js";
+import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -91,10 +91,10 @@ function CantileverView({ p }) {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="100%" style={{ display: "block" }}>
       {/* support wall/beam */}
-      <rect x={wallX - 26} y={top - 6} width={26} height={120} fill="#C7D2D9" stroke={C.ink2} strokeWidth="1.2" />
+      <rect x={wallX - 26} y={top - 6} width={26} height={120} fill={C.surf2} stroke={C.ink2} strokeWidth="1.2" />
       {[...Array(6)].map((_, i) => <line key={i} x1={wallX - 26} y1={top - 6 + i * 22} x2={wallX - 33} y2={top + 1 + i * 22} stroke={C.ink2} strokeWidth="0.8" />)}
       {/* tapered slab */}
-      <path d={`M${wallX} ${top} L${w - 30} ${tipY} L${w - 30} ${tipY + tipTh} L${wallX} ${top + rootTh} Z`} fill="#DCE6EB" stroke={C.teal} strokeWidth="1.6" />
+      <path d={`M${wallX} ${top} L${w - 30} ${tipY} L${w - 30} ${tipY + tipTh} L${wallX} ${top + rootTh} Z`} fill={C.surf2} stroke={C.teal} strokeWidth="1.6" />
       {/* top tension steel */}
       <line x1={wallX + 4} y1={top + 4} x2={w - 34} y2={tipY + 4} stroke={C.red} strokeWidth="2.4" />
       <text x={wallX + 30} y={top - 12} style={{ font: `600 11px ${MONO}`, fill: C.red }}>top steel (tension)</text>
@@ -177,7 +177,7 @@ export default function CantileverSlab({ onBack }) {
             </button>
           )}
           <div>
-            <div style={{ font: `900 18px ${UI}`, letterSpacing: "-0.01em", color: C.ink }}>Cantilever Balcony <span style={{ color: C.brass }}>Design</span></div>
+            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Cantilever Balcony <span style={{ color: C.cyan, fontStyle: "italic" }}>Design</span></div>
             <div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>IS 456:2000 · L/d = 7</div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
@@ -187,6 +187,7 @@ export default function CantileverSlab({ onBack }) {
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="cantilever-slab" inline />
             <button onClick={exportXlsx} disabled={!cases.length} className="cs-btn px-3.5 py-2 rounded-lg" style={{ font: `600 12px ${UI}`, border: `1px solid ${cases.length ? C.brass : C.line}`, color: cases.length ? C.brass : C.inkDim, background: C.surf }}>Export Excel</button>
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -202,24 +203,24 @@ export default function CantileverSlab({ onBack }) {
                 <span onClick={(e) => { e.stopPropagation(); del(p.id); }} style={{ color: C.inkDim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</span>
               </div>); })}
           </div>
-          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: "0 2px 8px rgba(166,110,18,.2)" }}>+ Add balcony</button>
+          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: `0 2px 10px ${C.cyanDeep}33` }}>+ Add balcony</button>
         </aside>
 
         <main className="grow min-w-0">
-          <div className="cs-card rounded-xl relative" style={{ backgroundColor: "#FBFCFD", backgroundImage: "radial-gradient(120% 90% at 50% 0%, #FFFFFF 0%, #E9EEF2 100%)", border: `1px solid ${C.line}`, minHeight: 250, overflow: "hidden" }}>
+          <div className="cs-card rounded-xl relative" style={{ backgroundColor: C.surf, backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${C.surf} 0%, ${C.surf2} 100%)`, border: `1px solid ${C.line}`, minHeight: 250, overflow: "hidden" }}>
             {sel ? (
               <div className="p-4">
                 <div className="flex items-start justify-between">
-                  <div><div style={{ font: `700 20px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>Cantilever balcony</div></div>
-                  {R && !R.incomplete && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,.9)", color: sColor(R.verdict), font: `700 13px ${MONO}`, border: `1px solid ${sColor(R.verdict)}55` }}>{R.verdict}</span>}
+                  <div><div style={{ font: `400 22px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>Cantilever balcony</div></div>
+                  {R && !R.incomplete && <VerdictBadge verdict={R.verdict} size="lg" />}
                 </div>
                 <div style={{ height: 205, marginTop: 4 }}><CantileverView p={sel} /></div>
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6" style={{ minHeight: 250 }}>
-                <div style={{ font: `700 20px ${UI}`, color: C.ink }}>Start a cantilever balcony</div>
+                <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a cantilever balcony</div>
                 <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a case, enter spans, thickness and the factored beam-face moment.</div>
-                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: "0 3px 12px rgba(166,110,18,.25)" }}>+ Add your first balcony</button>
+                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 3px 14px ${C.cyanDeep}3a` }}>+ Add your first balcony</button>
               </div>
             )}
           </div>
@@ -244,7 +245,7 @@ export default function CantileverSlab({ onBack }) {
                 <RVal accent={C.inkDim} name="MF compression" sym="MFc" val={fmt(R.MFc, 3)} />
                 <RVal accent={sColor(R.verdict)} name="Required depth" sym="dreq" val={isFinite(R.dReq) ? fmt(R.dReq, 1) : "—"} unit="mm" color={sColor(R.verdict)} />
               </Group>
-              {R.inadequate && <div className="mt-3 px-4 py-3 rounded-lg" style={{ background: "rgba(198,60,34,0.06)", border: `1px solid ${C.red}44`, color: C.red, font: `600 13px ${UI}` }}>Mu/bd² exceeds the singly-reinforced limit for M{sel.fck} — increase thickness or grade.</div>}
+              {R.inadequate && <div className="mt-3 px-4 py-3 rounded-lg" style={{ background: `${C.red}12`, border: `1px solid ${C.red}44`, color: C.red, font: `600 13px ${UI}` }}>Mu/bd² exceeds the singly-reinforced limit for M{sel.fck} — increase thickness or grade.</div>}
               <div className="mt-4">
                 <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
                 {showWork && <div className="mt-2 csin"><FormulaLedger F={F} ready={kReady} /></div>}

@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { C, UI, MONO, fmt } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX } from "../components/ui.jsx";
+import { C, UI, MONO, SERIF, fmt } from "../theme.js";
+import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -80,11 +80,11 @@ function SlabSection({ p, res }) {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="100%" style={{ display: "block" }}>
       {/* slab band */}
-      <rect x={mx} y={top} width={spanW} height={th} rx={2} fill="#DCE6EB" stroke={C.teal} strokeWidth="1.6" />
+      <rect x={mx} y={top} width={spanW} height={th} rx={2} fill={C.surf2} stroke={C.teal} strokeWidth="1.6" />
       {/* supports */}
       {[mx, w - mx].map((cx, i) => (
         <g key={i}>
-          <rect x={cx - 12} y={top + th} width={24} height={26} fill="#C7D2D9" stroke={C.ink2} strokeWidth="1" />
+          <rect x={cx - 12} y={top + th} width={24} height={26} fill={C.surf2} stroke={C.ink2} strokeWidth="1" />
           <path d={`M${cx - 12} ${top + th + 26} l24 0`} stroke={C.ink2} strokeWidth="1" />
           {[0, 1, 2, 3].map((k) => (
             <line key={k} x1={cx - 12 + k * 7} y1={top + th + 26} x2={cx - 16 + k * 7} y2={top + th + 33} stroke={C.ink2} strokeWidth="0.8" />
@@ -188,7 +188,7 @@ export default function OneWaySlab({ onBack }) {
             </button>
           )}
           <div>
-            <div style={{ font: `900 18px ${UI}`, letterSpacing: "-0.01em", color: C.ink }}>One-way Slab <span style={{ color: C.brass }}>Design</span></div>
+            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>One-way Slab <span style={{ color: C.cyan, fontStyle: "italic" }}>Design</span></div>
             <div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>REYNOLDS Ch.33 · IS 456:2000</div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
@@ -198,6 +198,7 @@ export default function OneWaySlab({ onBack }) {
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="one-way-slab" inline />
             <button onClick={exportXlsx} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={{ font: `600 12px ${UI}`, border: `1px solid ${panels.length ? C.brass : C.line}`, color: panels.length ? C.brass : C.inkDim, background: C.surf }}>Export Excel</button>
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -213,29 +214,27 @@ export default function OneWaySlab({ onBack }) {
                 <span onClick={(e) => { e.stopPropagation(); del(p.id); }} style={{ color: C.inkDim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</span>
               </div>); })}
           </div>
-          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: "0 2px 8px rgba(166,110,18,.2)" }}>+ Add panel</button>
+          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: `0 2px 10px ${C.cyanDeep}33` }}>+ Add panel</button>
         </aside>
 
         {/* center */}
         <main className="grow min-w-0">
-          <div className="cs-card rounded-xl relative" style={{ backgroundColor: "#FBFCFD", backgroundImage: "radial-gradient(120% 90% at 50% 0%, #FFFFFF 0%, #E9EEF2 100%)", border: `1px solid ${C.line}`, minHeight: 240, overflow: "hidden" }}>
+          <div className="cs-card rounded-xl relative" style={{ backgroundColor: C.surf, backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${C.surf} 0%, ${C.surf2} 100%)`, border: `1px solid ${C.line}`, minHeight: 240, overflow: "hidden" }}>
             {sel ? (
               <div className="p-4">
                 <div className="flex items-start justify-between">
-                  <div><div style={{ font: `700 20px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COEF[sel.type].label}</div></div>
+                  <div><div style={{ font: `400 22px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COEF[sel.type].label}</div></div>
                   {R && !R.incomplete && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,.9)", color: R.inadequate ? C.red : C.green, font: `700 13px ${MONO}`, border: `1px solid ${(R.inadequate ? C.red : C.green)}55` }}>
-                      {R.inadequate ? "SECTION INADEQUATE" : "DESIGNED"}
-                    </span>
+                    <VerdictBadge verdict={R.inadequate ? "INADEQUATE" : "DESIGNED"} label={R.inadequate ? "SECTION INADEQUATE" : "DESIGNED"} size="lg" />
                   )}
                 </div>
                 <div style={{ height: 190, marginTop: 4 }}><SlabSection p={sel} res={R} /></div>
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6" style={{ minHeight: 240 }}>
-                <div style={{ font: `700 20px ${UI}`, color: C.ink }}>Start a one-way slab panel</div>
+                <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a one-way slab panel</div>
                 <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a panel, choose edge or internal, then enter span, thickness and loads.</div>
-                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: "0 3px 12px rgba(166,110,18,.25)" }}>+ Add your first panel</button>
+                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 3px 14px ${C.cyanDeep}3a` }}>+ Add your first panel</button>
               </div>
             )}
           </div>
@@ -265,7 +264,7 @@ export default function OneWaySlab({ onBack }) {
                 <RVal accent={C.ink2} name={`Top steel spacing  (Ø ${sel.dia} mm)`} val={R.sTop ?? "—"} unit="mm c/c" />
                 <RVal accent={C.ink2} name={`Bottom steel spacing  (Ø ${sel.dia} mm)`} val={R.sMid ?? "—"} unit="mm c/c" />
               </Group>
-              {R.inadequate && <div className="mt-3 px-4 py-3 rounded-lg" style={{ background: "rgba(198,60,34,0.06)", border: `1px solid ${C.red}44`, color: C.red, font: `600 13px ${UI}` }}>Mu/bd² exceeds the singly-reinforced limit for M{sel.fck} — increase thickness or grade (the sheet would show an error here).</div>}
+              {R.inadequate && <div className="mt-3 px-4 py-3 rounded-lg" style={{ background: `${C.red}12`, border: `1px solid ${C.red}44`, color: C.red, font: `600 13px ${UI}` }}>Mu/bd² exceeds the singly-reinforced limit for M{sel.fck} — increase thickness or grade (the sheet would show an error here).</div>}
               <div className="mt-4">
                 <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
                 {showWork && <div className="mt-2 csin"><FormulaLedger F={F} ready={kReady} /></div>}

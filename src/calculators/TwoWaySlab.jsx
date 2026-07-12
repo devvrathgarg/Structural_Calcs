@@ -1,7 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import * as XLSX from "xlsx";
+import { C, UI, MONO, SERIF, fmt, sColor, useSharedStyles, useThemeMode } from "../theme.js";
+import { Field, RVal, Group, SecHead, FormulaLedger, TeX, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
+
+const HX = (s) => parseInt(String(s).replace("#", ""), 16); // "#RRGGBB" -> 0xRRGGBB for three.js
 
 /* ===== IS 456 Table 26 coefficients (as used by the firm's sheet) ===== */
 const RATIOS = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0];
@@ -53,20 +57,7 @@ function computePanel(p, g) {
   return { r, axp, axn, ayp, ayn, d, AbarPi, minAst, M, Ast, S, defl, bs, verdict, tag, util };
 }
 
-/* ===== light palette + type ===== */
-const C = { bg: "#EDF1F5", surf: "#FFFFFF", surf2: "#F4F7F9", line: "#DCE3E9", ink: "#152128", ink2: "#33454F", inkDim: "#5A6E7B", brass: "#A66E12", brassBg: "rgba(166,110,18,0.08)", teal: "#0B7E96", green: "#0F8F5B", red: "#C63C22", amber: "#A66E12" };
-const UI = "'Lato','Source Sans 3','Segoe UI',system-ui,sans-serif", MONO = "'IBM Plex Mono',ui-monospace,Menlo,monospace";
-const fmt = (v, d = 0) => (v == null ? "NA" : Number.isNaN(v) ? "—" : v.toFixed(d));
-const sColor = (v) => (v === "SAFE" ? C.green : v === "UNSAFE" || v === "REDESIGN" ? C.red : C.inkDim);
-
-/* ===== KaTeX renderer ===== */
-function TeX({ tex, ready, block }) {
-  if (!ready || !window.katex) return <span style={{ fontFamily: MONO, fontSize: 12, color: C.ink2 }}>{tex}</span>;
-  let html; try { html = window.katex.renderToString(tex, { throwOnError: false, displayMode: !!block }); } catch { html = tex; }
-  return <span style={{ display: block ? "block" : "inline" }} dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-/* ===== 3D live slab viewer (light) ===== */
+/* ===== 3D live slab viewer ===== */
 function SlabViewer({ panel }) {
   const mount = useRef(null), state = useRef({});
   useEffect(() => {
@@ -79,7 +70,7 @@ function SlabViewer({ panel }) {
     scene.add(new THREE.AmbientLight(0xffffff, .9));
     const dir = new THREE.DirectionalLight(0xffffff, .75); dir.position.set(4, 9, 6); scene.add(dir);
     const dir2 = new THREE.DirectionalLight(0xcfe4ec, .3); dir2.position.set(-5, 3, -4); scene.add(dir2);
-    const grid = new THREE.GridHelper(16, 16, 0xC7D0D7, 0xDFE5EA); grid.position.y = -1.2; scene.add(grid);
+    const grid = new THREE.GridHelper(16, 16, HX(C.line), HX(C.surf2)); grid.position.y = -1.2; scene.add(grid);
     const group = new THREE.Group(); scene.add(group);
     const rot = { theta: -0.7, phi: 1.05, r: 8.5, drag: false, px: 0, py: 0, auto: true };
     const resize = () => { const w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); };
@@ -101,17 +92,17 @@ function SlabViewer({ panel }) {
     const wx = (hasX ? Lx : 1) * S, wz = (hasY ? Ly : (hasX ? .25 : 1)) * S, th = Math.max(.12, (D || 120) / 1000 * S * 3.2), ghost = !hasX || !hasY;
     const geo = new THREE.BoxGeometry(wx, th, wz);
     g.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: ghost ? 0xC9D4DB : 0xB4C0C8, transparent: true, opacity: ghost ? .4 : .96 })));
-    g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: ghost ? 0x0B7E96 : 0x5E7280 })));
+    g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: ghost ? HX(C.cyan) : HX(C.cyanDeep) })));
     if (!ghost) {
       const e = EDGES[cond] || {};
-      const beam = (x, z, lx, lz) => { const bh = th * 1.4; const m = new THREE.Mesh(new THREE.BoxGeometry(lx, bh, lz), new THREE.MeshLambertMaterial({ color: 0xA66E12 })); m.position.set(x, -th / 2 - bh / 2 + .02, z); g.add(m); };
-      const rollers = (x, z, along, len) => { const n = Math.max(3, Math.round(len / .5)); for (let i = 0; i <= n; i++) { const t = -len / 2 + len / n * i; const m = new THREE.Mesh(new THREE.SphereGeometry(th * .35, 8, 8), new THREE.MeshLambertMaterial({ color: 0x0B7E96 })); m.position.set(along === "x" ? x + t : x, -th / 2 - th * .35, along === "z" ? z + t : z); g.add(m); } };
+      const beam = (x, z, lx, lz) => { const bh = th * 1.4; const m = new THREE.Mesh(new THREE.BoxGeometry(lx, bh, lz), new THREE.MeshLambertMaterial({ color: HX(C.cyanDeep) })); m.position.set(x, -th / 2 - bh / 2 + .02, z); g.add(m); };
+      const rollers = (x, z, along, len) => { const n = Math.max(3, Math.round(len / .5)); for (let i = 0; i <= n; i++) { const t = -len / 2 + len / n * i; const m = new THREE.Mesh(new THREE.SphereGeometry(th * .35, 8, 8), new THREE.MeshLambertMaterial({ color: HX(C.cyan) })); m.position.set(along === "x" ? x + t : x, -th / 2 - th * .35, along === "z" ? z + t : z); g.add(m); } };
       const hx = wx / 2, hz = wz / 2, bw = Math.min(.14, th * 1.1);
       (e.top === "C" ? beam(0, -hz, wx, bw) : rollers(0, -hz, "x", wx));
       (e.bottom === "C" ? beam(0, hz, wx, bw) : rollers(0, hz, "x", wx));
       (e.left === "C" ? beam(-hx, 0, bw, wz) : rollers(-hx, 0, "z", wz));
       (e.right === "C" ? beam(hx, 0, bw, wz) : rollers(hx, 0, "z", wz));
-      if (dia > 0 && sProv > 0) { const alongX = Lx <= Ly, n = 7, m2 = new THREE.MeshLambertMaterial({ color: 0x0B7E96 }); for (let i = 1; i < n; i++) { const t = -.5 + i / n, len = (alongX ? wx : wz) * .92, rr = Math.max(.012, dia / 1000 * S * 2.2); const cyl = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, len, 8), m2); cyl.rotation.z = Math.PI / 2; if (alongX) cyl.position.set(0, -th / 2 + rr * 1.5, t * wz); else { cyl.rotation.y = Math.PI / 2; cyl.position.set(t * wx, -th / 2 + rr * 1.5, 0); } g.add(cyl); } }
+      if (dia > 0 && sProv > 0) { const alongX = Lx <= Ly, n = 7, m2 = new THREE.MeshLambertMaterial({ color: HX(C.cyan) }); for (let i = 1; i < n; i++) { const t = -.5 + i / n, len = (alongX ? wx : wz) * .92, rr = Math.max(.012, dia / 1000 * S * 2.2); const cyl = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, len, 8), m2); cyl.rotation.z = Math.PI / 2; if (alongX) cyl.position.set(0, -th / 2 + rr * 1.5, t * wz); else { cyl.rotation.y = Math.PI / 2; cyl.position.set(t * wx, -th / 2 + rr * 1.5, 0); } g.add(cyl); } }
     }
     st.rot.r = Math.max(6, Math.max(wx, wz) * 1.9 + 2.5);
   }, [panel.Lx, panel.Ly, panel.D, panel.cond, panel.dia, panel.sProv]);
@@ -120,8 +111,8 @@ function SlabViewer({ panel }) {
 
 function CondGlyph({ cond, size = 40, active }) {
   const e = EDGES[cond], p = 5, s = size - p * 2, col = active ? C.brass : C.ink2;
-  const line = (x1, y1, x2, y2, cont) => <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={cont ? col : "#AEBDC6"} strokeWidth={cont ? 2.8 : 1.1} strokeDasharray={cont ? "0" : "3 2.5"} strokeLinecap="round" />;
-  return (<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}><rect x={p} y={p} width={s} height={s} fill={active ? "rgba(166,110,18,0.08)" : "rgba(11,126,150,0.05)"} />{line(p, p, p + s, p, e.top === "C")}{line(p, p + s, p + s, p + s, e.bottom === "C")}{line(p, p, p, p + s, e.left === "C")}{line(p + s, p, p + s, p + s, e.right === "C")}</svg>);
+  const line = (x1, y1, x2, y2, cont) => <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={cont ? col : C.subtle} strokeWidth={cont ? 2.8 : 1.1} strokeDasharray={cont ? "0" : "3 2.5"} strokeLinecap="round" />;
+  return (<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}><rect x={p} y={p} width={s} height={s} fill={active ? `${C.brass}14` : `${C.teal}0d`} />{line(p, p, p + s, p, e.top === "C")}{line(p, p + s, p + s, p + s, e.bottom === "C")}{line(p, p, p, p + s, e.left === "C")}{line(p + s, p, p + s, p + s, e.right === "C")}</svg>);
 }
 
 /* ===== formulas (LaTeX) — mirrors the sheet's method ===== */
@@ -150,80 +141,31 @@ function buildFormulas(p, res, g) {
   return F;
 }
 
-function FormulaLedger({ F, ready }) {
-  return (
-    <div className="rounded overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
-      {F.map((f, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5" style={{ background: i % 2 ? C.surf2 : C.surf, borderBottom: i < F.length - 1 ? `1px solid ${C.line}` : "none" }}>
-          <div className="w-32 shrink-0" style={{ font: `600 12px ${UI}`, color: C.brass }}>{f.label}</div>
-          <div className="grow" style={{ minWidth: 200 }}><TeX tex={f.sym} ready={ready} /></div>
-          <div style={{ font: `400 11px ${MONO}`, color: C.inkDim }}><TeX tex={"= " + f.sub} ready={ready} /></div>
-          <div className="ml-auto flex items-center gap-2">
-            <span style={{ font: `600 12px ${MONO}`, color: C.teal }}>{f.val}</span>
-            <span className="px-1.5 py-0.5 rounded" style={{ font: `500 10px ${MONO}`, color: C.teal, background: "rgba(11,126,150,0.09)", border: "1px solid rgba(11,126,150,0.22)" }}>{f.cl}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Field({ label, unit, value, onChange, hint }) {
-  const [txt, setTxt] = useState(value ? String(value) : "");
-  useEffect(() => { const n = parseFloat(txt); if (!((n === value) || (txt === "" && !value))) setTxt(value ? String(value) : ""); }, [value]);
-  const handle = (e) => { const raw = e.target.value; if (/^[0-9]*\.?[0-9]*$/.test(raw)) { setTxt(raw); const n = parseFloat(raw); onChange(isNaN(n) ? 0 : n); } };
-  return (
-    <label className="cs-field flex flex-col gap-1 px-3.5 py-2.5 rounded-lg" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-      <span style={{ font: `600 13px ${UI}`, color: C.inkDim, letterSpacing: .2 }}>{label}{hint && <span style={{ color: C.brass, fontWeight: 700, fontStyle: "normal", fontFamily: MONO }}> {hint}</span>}</span>
-      <span className="flex items-baseline gap-1.5">
-        <input type="text" inputMode="decimal" value={txt} placeholder="0" onChange={handle} className="cs-in outline-none grow min-w-0" style={{ width: "100%", font: `700 21px ${MONO}`, color: C.ink, background: "transparent", border: "none", textAlign: "right" }} />
-        <span style={{ font: `600 14px ${MONO}`, color: C.ink2, whiteSpace: "nowrap" }}>{unit}</span>
-      </span>
-    </label>
-  );
-}
-
-/* labeled result: name + Excel symbol + value */
-function RVal({ name, sym, val, unit, color, accent }) {
-  return (
-    <div className="cs-rval px-3 py-2 rounded-lg" style={{ background: C.surf, border: `1px solid ${C.line}`, borderLeft: `3px solid ${accent || C.line}` }}>
-      <div style={{ font: `600 13px/1.3 ${UI}`, color: C.ink2 }}>{name} <span style={{ fontFamily: MONO, color: accent || C.brass, fontWeight: 700 }}>{sym}</span></div>
-      <div className="flex items-baseline gap-1.5" style={{ marginTop: 3 }}><span style={{ font: `800 24px ${MONO}`, color: color || C.ink }}>{val}</span><span style={{ font: `600 14px ${MONO}`, color: C.ink2, whiteSpace: "nowrap" }}>{unit}</span></div>
-    </div>
-  );
-}
-function SecHead({ label, accent }) {
-  return (<div className="flex items-center gap-2" style={{ marginBottom: 9 }}><span style={{ width: 14, height: 3, borderRadius: 2, background: accent || C.brass }} /><span style={{ font: `700 11.5px ${UI}`, color: C.ink2, letterSpacing: 1.1 }}>{label}</span></div>);
-}
-function Group({ title, accent, children }) {
-  return (<div><div className="flex items-center gap-2" style={{ margin: "12px 0 7px" }}><span style={{ width: 16, height: 3, borderRadius: 2, background: accent || C.brass }} /><span style={{ font: `700 11.5px ${UI}`, color: C.ink2, letterSpacing: 1.1, textTransform: "uppercase" }}>{title}</span></div><div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{children}</div></div>);
-}
-
 function Report({ panels, results, g, project, onClose, onXlsx, ready }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto py-8 px-4" style={{ background: "rgba(21,33,40,0.5)" }}>
-      <div className="w-full max-w-3xl rounded" style={{ background: "#fff" }}>
-        <div className="flex justify-between items-center px-6 py-3" style={{ borderBottom: "2px solid #1D4E77" }}>
-          <div style={{ fontFamily: MONO, color: "#1D4E77", fontWeight: 700 }}>CALCULATION REPORT · all formulas</div>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto py-8 px-4" style={{ background: "rgba(3,8,18,0.62)", backdropFilter: "blur(3px)" }}>
+      <div className="w-full max-w-3xl rounded-lg cs-pop" style={{ background: "#FFFFFF" }}>
+        <div className="flex justify-between items-center px-6 py-3" style={{ borderBottom: "2px solid #0E7490" }}>
+          <div style={{ fontFamily: SERIF, color: "#0A1628", fontSize: 19 }}>Calculation report <span style={{ color: "#0E7490", fontStyle: "italic" }}>· all formulas</span></div>
           <div className="flex gap-2">
-            <button onClick={onXlsx} className="px-3 py-1 rounded text-sm text-white" style={{ background: "#177245" }}>Export Excel</button>
-            <button onClick={() => window.print()} className="px-3 py-1 rounded text-sm text-white" style={{ background: "#1D4E77" }}>Print / PDF</button>
-            <button onClick={onClose} className="px-3 py-1 rounded text-sm" style={{ border: "1px solid #ccc" }}>Close</button>
+            <button onClick={onXlsx} className="cs-btn px-3 py-1.5 rounded-lg text-sm text-white" style={{ background: "#0E9F6E", fontFamily: UI, fontWeight: 600 }}>Export Excel</button>
+            <button onClick={() => window.print()} className="cs-btn px-3 py-1.5 rounded-lg text-sm text-white" style={{ background: "#0E7490", fontFamily: UI, fontWeight: 600 }}>Print / PDF</button>
+            <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-sm" style={{ border: "1px solid #E8E4DC", fontFamily: UI, fontWeight: 600, color: "#33414D" }}>Close</button>
           </div>
         </div>
-        <div className="px-8 py-6" style={{ color: "#152128", fontFamily: UI }}>
-          <div className="grid grid-cols-3" style={{ border: "2px solid #152128" }}>
-            {[["PROJECT", project || "-"], ["ELEMENT", "Two-way slabs"], ["CODE", "IS 456:2000 + BS 8110"], ["PANELS", String(panels.length)], ["MATERIALS", `M${g.fck} / Fe${g.fy}`], ["DATE", new Date().toLocaleDateString("en-IN")]].map(([k, v]) => (<div key={k} className="px-3 py-2" style={{ border: "1px solid #152128" }}><div style={{ fontSize: 10, letterSpacing: 2, color: "#43678A" }}>{k}</div><div style={{ fontFamily: MONO, fontWeight: 600 }}>{v}</div></div>))}
+        <div className="px-8 py-6" style={{ color: "#0A1628", fontFamily: UI }}>
+          <div className="grid grid-cols-3" style={{ border: "2px solid #0A1628" }}>
+            {[["PROJECT", project || "-"], ["ELEMENT", "Two-way slabs"], ["CODE", "IS 456:2000 + BS 8110"], ["PANELS", String(panels.length)], ["MATERIALS", `M${g.fck} / Fe${g.fy}`], ["DATE", new Date().toLocaleDateString("en-IN")]].map(([k, v]) => (<div key={k} className="px-3 py-2" style={{ border: "1px solid #0A1628" }}><div style={{ fontSize: 10, letterSpacing: 2, color: "#6B6860", fontFamily: MONO }}>{k}</div><div style={{ fontFamily: MONO, fontWeight: 600 }}>{v}</div></div>))}
           </div>
           {panels.map((p) => { const r = results[p.id], F = buildFormulas(p, r, g); return (
-            <div key={p.id} className="mt-5 pb-4" style={{ borderBottom: "1px solid #D8D4C8" }}>
-              <div className="flex justify-between items-baseline"><div style={{ fontFamily: MONO, fontWeight: 700 }}>{p.name} — {COND_NAMES[p.cond]}</div><span className="px-2 py-0.5 rounded" style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: r.verdict === "SAFE" ? "#177245" : "#B3261E", background: r.verdict === "SAFE" ? "#E4F2E9" : "#F9E5E3" }}>{r.verdict}{r.tag ? " " + r.tag : ""}</span></div>
-              <div style={{ fontSize: 11, fontFamily: MONO, color: "#43678A", margin: "2px 0 8px" }}>Lx {p.Lx} × Ly {p.Ly} m · w {p.w} T/m² · D {p.D} · Ø{p.dia}@{p.sProv}</div>
-              {r.incomplete ? <div style={{ fontSize: 12, color: "#B3261E" }}>Incomplete — missing {r.missing.join(", ")}</div> :
-                <div className="space-y-2">{F.map((f, i) => (<div key={i} className="flex flex-wrap items-center gap-x-3" style={{ fontSize: 12, borderTop: i ? "1px solid #eee" : "none", paddingTop: i ? 5 : 0 }}><span style={{ width: 130, fontWeight: 600 }}>{f.label}</span><span className="grow" style={{ minWidth: 180 }}><TeX tex={f.sym} ready={ready} /></span><span style={{ color: "#177245", fontFamily: MONO, fontWeight: 600 }}>{f.val}</span><span style={{ color: "#1D4E77", fontFamily: MONO, fontSize: 10 }}>{f.cl}</span></div>))}</div>}
+            <div key={p.id} className="mt-5 pb-4" style={{ borderBottom: "1px solid #E8E4DC" }}>
+              <div className="flex justify-between items-baseline"><div style={{ fontFamily: SERIF, fontSize: 17 }}>{p.name} — {COND_NAMES[p.cond]}</div><span className="px-2 py-0.5 rounded" style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: r.verdict === "SAFE" ? "#0E9F6E" : "#E11D48", background: r.verdict === "SAFE" ? "#0E9F6E18" : "#E11D4818" }}>{r.verdict}{r.tag ? " " + r.tag : ""}</span></div>
+              <div style={{ fontSize: 11, fontFamily: MONO, color: "#6B6860", margin: "2px 0 8px" }}>Lx {p.Lx} × Ly {p.Ly} m · w {p.w} T/m² · D {p.D} · Ø{p.dia}@{p.sProv}</div>
+              {r.incomplete ? <div style={{ fontSize: 12, color: "#E11D48" }}>Incomplete — missing {r.missing.join(", ")}</div> :
+                <div className="space-y-2">{F.map((f, i) => (<div key={i} className="flex flex-wrap items-center gap-x-3" style={{ fontSize: 12, borderTop: i ? "1px solid #F0ECE3" : "none", paddingTop: i ? 5 : 0 }}><span style={{ width: 130, fontWeight: 600 }}>{f.label}</span><span className="grow" style={{ minWidth: 180 }}><TeX tex={f.sym} ready={ready} /></span><span style={{ color: "#0E9F6E", fontFamily: MONO, fontWeight: 600 }}>{f.val}</span><span style={{ color: "#0E7490", fontFamily: MONO, fontSize: 10 }}>{f.cl}</span></div>))}</div>}
             </div>); })}
-          <div className="mt-8 grid grid-cols-2 gap-8">{["Designed by", "Checked & approved (sign-off)"].map((t) => <div key={t}><div className="h-12" style={{ borderBottom: "1px solid #152128" }} /><div style={{ fontSize: 11, color: "#43678A", marginTop: 4 }}>{t}</div></div>)}</div>
-          <p className="mt-6" style={{ fontSize: 10, color: "#43678A" }}>Reproduces the firm's spreadsheet method: single effective depth, IS 456 Table 26 coefficients (interpolated), deflection per Cl 23.2.1 with BS 8110 fallback. Loads factored; 1 T = 10 kN. The signing engineer retains responsibility.</p>
+          <div className="mt-8 grid grid-cols-2 gap-8">{["Designed by", "Checked & approved (sign-off)"].map((t) => <div key={t}><div className="h-12" style={{ borderBottom: "1px solid #0A1628" }} /><div style={{ fontSize: 11, color: "#6B6860", marginTop: 4 }}>{t}</div></div>)}</div>
+          <p className="mt-6" style={{ fontSize: 10, color: "#6B6860" }}>Reproduces the firm's spreadsheet method: single effective depth, IS 456 Table 26 coefficients (interpolated), deflection per Cl 23.2.1 with BS 8110 fallback. Loads factored; 1 T = 10 kN. The signing engineer retains responsibility.</p>
         </div>
       </div>
     </div>
@@ -237,35 +179,10 @@ export default function CivilSpaceCalc({ onBack }) {
   const [project, setProject] = useState("");
   const [showWork, setShowWork] = useState(false);
   const [showReport, setShowReport] = useState(false);
-  const [kReady, setKReady] = useState(false);
   const nextId = useRef(1);
-
-  useEffect(() => {
-    const f = document.createElement("link"); f.rel = "stylesheet"; f.href = "https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;900&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"; document.head.appendChild(f);
-    const kc = document.createElement("link"); kc.rel = "stylesheet"; kc.href = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css"; document.head.appendChild(kc);
-    const s = document.createElement("style"); s.textContent = `
-      @keyframes csin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-      .csin{animation:csin .4s cubic-bezier(.4,0,.2,1) both}
-      .katex{font-size:1.02em}
-      .cs-bp{background-color:#EDF1F5;background-image:linear-gradient(rgba(21,33,40,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(21,33,40,.028) 1px,transparent 1px);background-size:28px 28px}
-      .cs-card{box-shadow:0 1px 2px rgba(21,33,40,.05),0 6px 20px rgba(21,33,40,.05)}
-      .cs-rval{transition:transform .15s ease,box-shadow .15s ease}
-      .cs-rval:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(21,33,40,.09)}
-      .cs-field{transition:border-color .15s,box-shadow .15s}
-      .cs-field:focus-within{border-color:#A66E12;box-shadow:0 0 0 3px rgba(166,110,18,.13)}
-      .cs-panel{transition:transform .12s ease,box-shadow .15s ease}
-      .cs-panel:hover{box-shadow:0 4px 12px rgba(21,33,40,.09)}
-      .cs-cond{transition:transform .1s ease,border-color .15s ease,box-shadow .15s}
-      .cs-cond:hover{border-color:#A66E12;box-shadow:0 3px 8px rgba(21,33,40,.08)}
-      .cs-btn{transition:transform .1s ease,box-shadow .2s ease,filter .2s ease}
-      .cs-btn:hover:not(:disabled){filter:brightness(1.04);box-shadow:0 5px 16px rgba(166,110,18,.22)}
-      .cs-btn:active:not(:disabled){transform:translateY(1px)}
-      input.cs-in::placeholder{color:#AAB8C1}
-      @media(prefers-reduced-motion:reduce){.csin{animation:none}.cs-rval,.cs-btn,.cs-cond{transition:none}}
-    `; document.head.appendChild(s);
-    const ks = document.createElement("script"); ks.src = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"; ks.onload = () => setKReady(true); document.head.appendChild(ks);
-    return () => { [f, kc, s, ks].forEach((n) => n.remove()); };
-  }, []);
+  useSharedStyles();
+  const kReady = useKaTeX();
+  const mode = useThemeMode(); // re-mounts the 3D viewer so its colours follow the theme
 
   const results = useMemo(() => { const o = {}; for (const p of panels) o[p.id] = computePanel(p, g); return o; }, [panels, g]);
   const sel = panels.find((p) => p.id === selId) || null;
@@ -302,16 +219,17 @@ export default function CivilSpaceCalc({ onBack }) {
             </button>
           )}
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: "linear-gradient(135deg,#FBF3E2,#F6ECD6)", border: `1px solid ${C.line}` }}>
-              <svg width="26" height="26" viewBox="0 0 34 34"><rect x="3" y="3" width="28" height="28" rx="2" fill="none" stroke={C.brass} strokeWidth="2.4" /><line x1="3" y1="12" x2="31" y2="12" stroke={C.brass} strokeWidth="1.6" /><line x1="12" y1="12" x2="12" y2="31" stroke={C.teal} strokeWidth="1.6" /><circle cx="12" cy="12" r="2.4" fill={C.teal} /></svg>
+            <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: C.surf2, border: `1px solid ${C.line}` }}>
+              <svg width="26" height="26" viewBox="0 0 34 34"><rect x="3" y="3" width="28" height="28" rx="2" fill="none" stroke={C.cyanDeep} strokeWidth="2.4" /><line x1="3" y1="12" x2="31" y2="12" stroke={C.cyanDeep} strokeWidth="1.6" /><line x1="12" y1="12" x2="12" y2="31" stroke={C.cyan} strokeWidth="1.6" /><circle cx="12" cy="12" r="2.4" fill={C.cyan} /></svg>
             </div>
-            <div><div style={{ font: `700 18px ${UI}`, color: C.ink, letterSpacing: "-.01em" }}>CivilSpace <span style={{ color: C.brass }}>Calc</span></div><div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>TWO-WAY SLAB · IS 456:2000</div></div>
+            <div><div style={{ font: `400 21px ${SERIF}`, color: C.ink, letterSpacing: "-.01em" }}>CivilSpace <span style={{ color: C.cyan, fontStyle: "italic" }}>Calc</span></div><div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>TWO-WAY SLAB · IS 456:2000</div></div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}><span style={{ font: `600 10px ${MONO}`, color: C.inkDim }}>PROJECT</span><input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 170, background: "transparent" }} /></div>
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="two-way-slab" inline />
             <button onClick={exportXlsx} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ border: `1px solid ${panels.length ? C.brass : C.line}`, color: panels.length ? C.brass : C.inkDim, background: C.surf })}>Export Excel</button>
             <button onClick={() => setShowReport(true)} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ background: panels.length ? C.green : C.line, color: "#fff" })}>Generate report</button>
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -327,22 +245,22 @@ export default function CivilSpaceCalc({ onBack }) {
                 <span onClick={(e) => { e.stopPropagation(); del(p.id); }} style={{ color: C.inkDim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</span>
               </div>); })}
           </div>
-          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: "0 2px 8px rgba(166,110,18,.2)" }}>+ Add panel</button>
+          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: `0 2px 10px ${C.cyanDeep}33` }}>+ Add panel</button>
         </aside>
 
         <main className="grow min-w-0">
-          <div className="cs-card rounded-xl relative" style={{ backgroundColor: "#FBFCFD", backgroundImage: "radial-gradient(120% 90% at 50% 0%, #FFFFFF 0%, #E9EEF2 100%), linear-gradient(rgba(21,33,40,.03) 1px,transparent 1px), linear-gradient(90deg,rgba(21,33,40,.03) 1px,transparent 1px)", backgroundSize: "auto, 28px 28px, 28px 28px", border: `1px solid ${C.line}`, height: 360, overflow: "hidden" }}>
-            {sel ? <SlabViewer panel={sel} /> : (
+          <div className="cs-card rounded-xl relative" style={{ backgroundColor: C.surf, backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${C.surf} 0%, ${C.surf2} 100%), linear-gradient(var(--grid) 1px,transparent 1px), linear-gradient(90deg,var(--grid) 1px,transparent 1px)`, backgroundSize: "auto, 28px 28px, 28px 28px", border: `1px solid ${C.line}`, height: 360, overflow: "hidden" }}>
+            {sel ? <SlabViewer key={mode} panel={sel} /> : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <svg width="76" height="76" viewBox="0 0 72 72" style={{ marginBottom: 14 }}><polygon points="12,30 36,18 60,30 36,42" fill="none" stroke={C.brass} strokeWidth="2" strokeLinejoin="round" /><polygon points="12,30 36,42 36,54 12,42" fill="rgba(166,110,18,0.08)" stroke={C.brass} strokeWidth="1.5" strokeLinejoin="round" /><polygon points="60,30 36,42 36,54 60,42" fill="rgba(11,126,150,0.06)" stroke={C.teal} strokeWidth="1.5" strokeLinejoin="round" /></svg>
-                <div style={{ font: `700 20px ${UI}`, color: C.ink }}>Start a new slab panel</div>
+                <svg width="76" height="76" viewBox="0 0 72 72" style={{ marginBottom: 14 }}><polygon points="12,30 36,18 60,30 36,42" fill="none" stroke={C.cyanDeep} strokeWidth="2" strokeLinejoin="round" /><polygon points="12,30 36,42 36,54 12,42" fill={`${C.cyanDeep}14`} stroke={C.cyanDeep} strokeWidth="1.5" strokeLinejoin="round" /><polygon points="60,30 36,42 36,54 60,42" fill={`${C.cyan}18`} stroke={C.cyan} strokeWidth="1.5" strokeLinejoin="round" /></svg>
+                <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a new slab panel</div>
                 <div style={{ font: `400 13px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a panel, then type its span, thickness and load. The slab takes shape here and results appear as you go.</div>
-                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: "0 3px 12px rgba(166,110,18,.25)" }}>+ Add your first panel</button>
+                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 3px 14px ${C.cyanDeep}3a` }}>+ Add your first panel</button>
               </div>
             )}
             {sel && (<>
-              <div className="absolute top-3 left-4"><div style={{ font: `700 20px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COND_NAMES[sel.cond]}</div></div>
-              <div className="absolute top-3 right-4">{R?.incomplete ? <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,.8)", color: C.inkDim, font: `600 12px ${MONO}`, border: `1px solid ${C.line}` }}>enter {R.missing.join(", ")}</span> : <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,.9)", color: sColor(R.verdict), font: `700 13px ${MONO}`, border: `1px solid ${sColor(R.verdict)}55`, boxShadow: `0 2px 8px ${sColor(R.verdict)}22` }}>{R.verdict === "SAFE" ? <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7.5" fill="none" stroke={C.green} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5H1.5z" fill="none" stroke={sColor(R.verdict)} strokeWidth="1.8" strokeLinejoin="round" /><line x1="8" y1="6.5" x2="8" y2="9.5" stroke={sColor(R.verdict)} strokeWidth="1.8" strokeLinecap="round" /><circle cx="8" cy="11.4" r="0.6" fill={sColor(R.verdict)} /></svg>}{R.verdict}{R.tag ? " · " + R.tag : ""}</span>}</div>
+              <div className="absolute top-3 left-4"><div style={{ font: `400 21px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COND_NAMES[sel.cond]}</div></div>
+              <div className="absolute top-3 right-4">{R?.incomplete ? <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: C.surf, color: C.inkDim, font: `600 12px ${MONO}`, border: `1px solid ${C.line}` }}>enter {R.missing.join(", ")}</span> : <VerdictBadge verdict={R.verdict} label={`${R.verdict}${R.tag ? " · " + R.tag : ""}`} size="lg" />}</div>
               <div className="absolute bottom-3 left-4 flex gap-4" style={{ font: `600 11px ${MONO}`, color: C.inkDim }}><span>Lx <b style={{ color: C.ink }}>{sel.Lx || "-"}</b> m</span><span>Ly <b style={{ color: C.ink }}>{sel.Ly || "-"}</b> m</span><span>D <b style={{ color: C.ink }}>{sel.D || "-"}</b> mm</span></div>
               <div className="absolute bottom-3 right-4 flex items-center gap-3" style={{ font: `500 10px ${MONO}`, color: C.inkDim }}><span className="flex items-center gap-1"><span style={{ width: 12, height: 3, background: C.brass, display: "inline-block", borderRadius: 2 }} />supported edge</span><span className="flex items-center gap-1"><span style={{ width: 6, height: 6, background: C.teal, borderRadius: 6, display: "inline-block" }} />free edge</span></div>
             </>)}

@@ -1,7 +1,8 @@
 import React from "react";
-import { C, UI, MONO, useSharedStyles } from "../theme.js";
+import { C, UI, MONO, SERIF, useSharedStyles } from "../theme.js";
 import CalcIcon from "../components/CalcIcon.jsx";
 import Feedback from "../components/Feedback.jsx";
+import { ThemeToggle } from "../components/ui.jsx";
 import { CATEGORIES } from "../calculators.js";
 
 /* Placeholder shown for calculators that aren't wired up yet. */
@@ -13,17 +14,17 @@ export default function ComingSoon({ calc, onBack }) {
       <TopBar onBack={onBack} title={calc.name} code={calc.code} />
       <div className="grow flex items-center justify-center px-5">
         <div
-          className="cs-card rounded-2xl px-8 py-12 text-center flex flex-col items-center"
+          className="cs-card cs-fade-up rounded-2xl px-8 py-12 text-center flex flex-col items-center"
           style={{ background: C.surf, border: `1px solid ${C.line}`, maxWidth: 520 }}
         >
           <div
             className="flex items-center justify-center rounded-2xl mb-5"
-            style={{ width: 76, height: 76, background: `${accent}12`, border: `1px solid ${accent}33` }}
+            style={{ width: 76, height: 76, background: `${accent}1e`, border: `1px solid ${accent}44` }}
           >
             <CalcIcon name={calc.icon} size={42} color={accent} />
           </div>
-          <div style={{ font: `700 12px ${MONO}`, letterSpacing: 1.4, color: accent }}>IN DEVELOPMENT</div>
-          <h1 style={{ font: `900 26px/1.2 ${UI}`, letterSpacing: "-0.01em", color: C.ink, marginTop: 8 }}>
+          <div style={{ font: `600 12px ${MONO}`, letterSpacing: 1.6, color: accent }}>IN DEVELOPMENT</div>
+          <h1 style={{ font: `400 32px/1.15 ${SERIF}`, letterSpacing: "-0.01em", color: C.ink, marginTop: 8 }}>
             {calc.name}
           </h1>
           <p style={{ font: `400 15px/1.55 ${UI}`, color: C.inkDim, marginTop: 10 }}>{calc.blurb}</p>
@@ -63,9 +64,10 @@ export function TopBar({ onBack, title, code }) {
           All calculators
         </button>
         <div className="min-w-0">
-          <div className="truncate" style={{ font: `700 17px ${UI}`, color: C.ink }}>{title}</div>
+          <div className="truncate" style={{ font: `400 20px ${SERIF}`, color: C.ink }}>{title}</div>
           {code && <div style={{ font: `500 11px ${MONO}`, color: C.inkDim, letterSpacing: 0.6 }}>{code}</div>}
         </div>
+        <div className="ml-auto"><ThemeToggle /></div>
       </div>
     </header>
   );

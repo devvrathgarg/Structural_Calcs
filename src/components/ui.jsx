@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { C, UI, MONO } from "../theme.js";
+import { C, UI, MONO, useCountUp, useThemeMode, toggleTheme } from "../theme.js";
 
 /* =====================================================================
    Shared calculator UI primitives — one design system for every tool.
@@ -73,15 +73,25 @@ export function Field({ label, unit, value, onChange, hint, text }) {
   );
 }
 
+/* animate a formatted numeric string, preserving its decimal places */
+function AnimatedValue({ val }) {
+  const str = String(val);
+  const isNum = /^-?\d*\.?\d+$/.test(str.trim());
+  const decimals = isNum && str.includes(".") ? str.split(".")[1].length : 0;
+  const target = isNum ? parseFloat(str) : NaN;
+  const v = useCountUp(target, { start: isNum });
+  return <>{isNum ? Number(v).toFixed(decimals) : str}</>;
+}
+
 /* ---- labelled result value ---- */
 export function RVal({ name, sym, val, unit, color, accent }) {
   return (
-    <div className="cs-rval px-3.5 py-2.5 rounded-lg" style={{ background: C.surf, border: `1px solid ${C.line}`, borderLeft: `3px solid ${accent || C.line}` }}>
+    <div className="cs-rval px-3.5 py-2.5 rounded-lg" style={{ background: C.surf, border: `1px solid ${C.line}`, borderLeft: `3px solid ${accent || C.cyanDeep}` }}>
       <div style={{ font: `600 13px/1.3 ${UI}`, color: C.ink2 }}>
-        {name} {sym && <span style={{ fontFamily: MONO, color: accent || C.brass, fontWeight: 700 }}>{sym}</span>}
+        {name} {sym && <span style={{ fontFamily: MONO, color: accent || C.cyanDeep, fontWeight: 700 }}>{sym}</span>}
       </div>
       <div className="flex items-baseline gap-1.5" style={{ marginTop: 3 }}>
-        <span style={{ font: `800 24px ${MONO}`, color: color || C.ink }}>{val}</span>
+        <span style={{ font: `700 24px ${MONO}`, color: color || C.ink }}><AnimatedValue val={val} /></span>
         {unit && <span style={{ font: `600 14px ${MONO}`, color: C.ink2, whiteSpace: "nowrap" }}>{unit}</span>}
       </div>
     </div>
@@ -121,10 +131,76 @@ export function FormulaLedger({ F, ready }) {
           {f.sub && <div style={{ font: `400 12px ${MONO}`, color: C.inkDim }}><TeX tex={"= " + f.sub} ready={ready} /></div>}
           <div className="ml-auto flex items-center gap-2">
             <span style={{ font: `600 13px ${MONO}`, color: C.teal }}>{f.val}</span>
-            {f.cl && <span className="px-1.5 py-0.5 rounded" style={{ font: `500 10.5px ${MONO}`, color: C.teal, background: "rgba(11,126,150,0.09)", border: "1px solid rgba(11,126,150,0.22)" }}>{f.cl}</span>}
+            {f.cl && <span className="px-1.5 py-0.5 rounded" style={{ font: `500 10.5px ${MONO}`, color: C.teal, background: C.tealBg, border: `1px solid ${C.teal}44` }}>{f.cl}</span>}
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+/* =====================================================================
+   Lively shared pieces — pulsing status dot, theme toggle, verdict badge
+   ===================================================================== */
+
+/* pulsing status dot (the "alive" signal) */
+export function StatusDot({ color = C.green, size = 8 }) {
+  return (
+    <span style={{ position: "relative", display: "inline-flex", width: size, height: size }}>
+      <span style={{ position: "absolute", inset: 0, borderRadius: 999, background: color, opacity: 0.45, animation: "cs-pulse 2s ease-out infinite" }} />
+      <span style={{ position: "absolute", inset: size * 0.22, borderRadius: 999, background: color }} />
+    </span>
+  );
+}
+
+/* light / dark surface toggle — persists the choice */
+export function ThemeToggle() {
+  const mode = useThemeMode();
+  const dark = mode === "dark";
+  return (
+    <button
+      onClick={toggleTheme}
+      title={dark ? "Switch to light" : "Switch to dark"}
+      className="cs-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg"
+      style={{ border: `1px solid ${C.line}`, background: C.surf, color: C.ink2, font: `600 11px ${MONO}`, letterSpacing: 0.6 }}
+    >
+      {dark ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4.2" /><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" />
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.cyanDeep} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z" />
+        </svg>
+      )}
+      {dark ? "LIGHT" : "DARK"}
+    </button>
+  );
+}
+
+const VERDICT_META = {
+  SAFE: { label: "SAFE", color: C.green, icon: "check" },
+  PASS: { label: "PASS", color: C.green, icon: "check" },
+  DESIGNED: { label: "DESIGNED", color: C.green, icon: "check" },
+  UNSAFE: { label: "UNSAFE", color: C.red, icon: "alert" },
+  REDESIGN: { label: "REDESIGN", color: C.red, icon: "alert" },
+  INADEQUATE: { label: "INADEQUATE", color: C.red, icon: "alert" },
+  REVIEW: { label: "REVIEW", color: C.amber, icon: "eye" },
+};
+
+/* verdict badge — colour ALWAYS paired with an icon + label */
+export function VerdictBadge({ verdict, label, size = "md" }) {
+  const m = VERDICT_META[verdict] || { label: label || verdict, color: C.inkDim, icon: "dash" };
+  const dims = size === "lg" ? { pad: "6px 13px", fs: 13, ic: 15 } : { pad: "5px 11px", fs: 11.5, ic: 13 };
+  return (
+    <span className="cs-pop inline-flex items-center gap-1.5" style={{ padding: dims.pad, borderRadius: 999, font: `700 ${dims.fs}px ${MONO}`, letterSpacing: "0.06em", color: m.color, background: `${m.color}18`, border: `1px solid ${m.color}55`, whiteSpace: "nowrap" }}>
+      <svg width={dims.ic} height={dims.ic} viewBox="0 0 24 24" fill="none" stroke={m.color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        {m.icon === "check" && <path d="M20 6 L9 17 l-5 -5" />}
+        {m.icon === "alert" && <><path d="M12 3 L22 20 H2 Z" /><path d="M12 10 v4" /><path d="M12 17 h.01" /></>}
+        {m.icon === "eye" && <><path d="M2 12 s4 -7 10 -7 10 7 10 7 -4 7 -10 7 -10 -7 -10 -7Z" /><circle cx="12" cy="12" r="2.6" /></>}
+        {m.icon === "dash" && <><circle cx="12" cy="12" r="9" /><path d="M8 12 h8" /></>}
+      </svg>
+      {label || m.label}
+    </span>
   );
 }

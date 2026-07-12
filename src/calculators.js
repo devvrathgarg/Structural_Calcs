@@ -1,16 +1,16 @@
-import { C } from "./theme.js";
-
 /* =====================================================================
    Master registry of every structural calculator.
    The hub page, search and router all read from this one array.
    status: "ready" | "soon"
    ===================================================================== */
 
+// Accents from the shared design family (cyan / indigo / amber / green).
+// Literal hex (not mode-dependent) so `${accent}12`-style tints stay valid.
 export const CATEGORIES = [
-  { key: "slabs", label: "Slabs & Plates", accent: C.teal },
-  { key: "service", label: "Serviceability Checks", accent: C.violet },
-  { key: "foundations", label: "Foundations", accent: C.brass },
-  { key: "members", label: "Members & Connections", accent: C.green },
+  { key: "slabs", label: "Slabs & Plates", accent: "#0E7490" },
+  { key: "service", label: "Serviceability Checks", accent: "#6366F1" },
+  { key: "foundations", label: "Foundations", accent: "#E08A00" },
+  { key: "members", label: "Members & Connections", accent: "#0E9F6E" },
 ];
 
 export const CALCULATORS = [
