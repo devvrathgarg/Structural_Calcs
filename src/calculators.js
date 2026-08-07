@@ -80,9 +80,9 @@ export const CALCULATORS = [
     name: "Isolated Footing",
     category: "foundations",
     icon: "footing",
-    code: "IS 456:2000",
-    status: "soon",
-    blurb: "Size the footing, check bearing pressure, one-way shear and bending steel.",
+    code: "IS 456:2000 · biaxial",
+    status: "ready",
+    blurb: "Biaxial footing — 4-corner soil pressure vs SBC, bending steel each way, one-way & punching shear, min depth. Multiple load combinations enveloped.",
   },
   {
     id: "punching-shear",

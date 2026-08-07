@@ -4,6 +4,7 @@ import ComingSoon from "./pages/ComingSoon.jsx";
 import TwoWaySlab from "./calculators/TwoWaySlab.jsx";
 import OneWaySlab from "./calculators/OneWaySlab.jsx";
 import CantileverSlab from "./calculators/CantileverSlab.jsx";
+import IsolatedFooting from "./calculators/IsolatedFooting.jsx";
 import { byId } from "./calculators.js";
 import { useSharedStyles, useThemeMode, applyTheme } from "./theme.js";
 
@@ -19,6 +20,7 @@ const READY = {
   "two-way-slab": TwoWaySlab,
   "one-way-slab": OneWaySlab,
   "cantilever-slab": CantileverSlab,
+  "isolated-footing": IsolatedFooting,
 };
 
 function parseHash() {
