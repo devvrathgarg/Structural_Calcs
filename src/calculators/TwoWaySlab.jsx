@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt, sColor, useSharedStyles, useThemeMode } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, TeX, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
+import { Field, FormSec, FormulaLedger, TeX, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 const HX = (s) => parseInt(String(s).replace("#", ""), 16); // "#RRGGBB" -> 0xRRGGBB for three.js
@@ -209,24 +209,26 @@ export default function CivilSpaceCalc({ onBack }) {
 
   const F = sel && R ? buildFormulas(sel, R, g) : [];
   const btn = (x) => ({ font: `600 12px ${UI}`, ...x });
+  const KEYS = [["xp", "Bottom · short span", "Mx+"], ["yp", "Bottom · long span", "My+"], ["xn", "Top · short span (support)", "Mx−"], ["yn", "Top · long span (support)", "My−"]];
+  const barTxt = (p, r, k) => r.Ast[k] == null ? "NA" : Number.isNaN(r.Ast[k]) ? "fails" : `Ø${p.dia} @ ${fmt(r.S[k], 0)}`;
 
   return (
     <div className="min-h-screen cs-bp" style={{ color: C.ink, fontFamily: UI }}>
-      <header className="px-4 pt-4 mx-auto" style={{ maxWidth: 1480 }}>
-        <div className="cs-card flex flex-wrap items-center gap-4 px-4 py-3 rounded-xl" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+      <header className="px-4 pt-4 mx-auto" style={{ maxWidth: 1320 }}>
+        <div className="cs-card flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
           {onBack && (
             <button onClick={onBack} className="cs-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.surf, color: C.ink2, font: `600 13px ${UI}` }}>
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M12 8H4M7.5 4.5L4 8l3.5 3.5" stroke={C.ink2} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              All
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M12 8H4M7.5 4.5L4 8l3.5 3.5" stroke={C.ink2} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>All
             </button>
           )}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: C.surf2, border: `1px solid ${C.line}` }}>
-              <svg width="26" height="26" viewBox="0 0 34 34"><rect x="3" y="3" width="28" height="28" rx="2" fill="none" stroke={C.cyanDeep} strokeWidth="2.4" /><line x1="3" y1="12" x2="31" y2="12" stroke={C.cyanDeep} strokeWidth="1.6" /><line x1="12" y1="12" x2="12" y2="31" stroke={C.cyan} strokeWidth="1.6" /><circle cx="12" cy="12" r="2.4" fill={C.cyan} /></svg>
-            </div>
-            <div><div style={{ font: `400 21px ${SERIF}`, color: C.ink, letterSpacing: "-.01em" }}>CivilSpace Calc</div><div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>TWO-WAY SLAB · IS 456:2000</div></div>
+          <div>
+            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Two-way Slab Design</div>
+            <div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>IS 456:2000 · Table 26 · deflection with BS 8110 fallback</div>
           </div>
-          <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}><span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span><input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 170, background: "transparent" }} /></div>
+          <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
+            <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span>
+            <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 150, background: "transparent" }} />
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="two-way-slab" inline />
             <button onClick={exportXlsx} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ border: `1px solid ${panels.length ? C.brass : C.line}`, color: panels.length ? C.brass : C.inkDim, background: C.surf })}>Export Excel</button>
@@ -236,115 +238,154 @@ export default function CivilSpaceCalc({ onBack }) {
         </div>
       </header>
 
-      <div className="mx-auto px-4 py-4 flex flex-col lg:flex-row gap-4" style={{ maxWidth: 1480 }}>
-        <aside className="lg:w-52 shrink-0">
-          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 12px ${UI}`, color: C.inkDim }}>Panels</span>{panels.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} pass</span>}</div>
-          <div className="space-y-1.5">
-            {panels.map((p) => { const r = results[p.id], on = selId === p.id; return (
-              <div key={p.id} onClick={() => { setSelId(p.id); setShowWork(false); }} className={"cs-panel px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2" + (on ? " cs-card" : "")} style={{ background: on ? C.surf : C.surf, borderLeft: `3px solid ${on ? C.brass : sColor(r.verdict)}`, border: `1px solid ${on ? C.brass : C.line}`, borderLeftWidth: 3, borderLeftColor: on ? C.brass : sColor(r.verdict) }}>
-                <span style={{ width: 9, height: 9, borderRadius: 9, background: sColor(r.verdict), flexShrink: 0, boxShadow: `0 0 0 3px ${sColor(r.verdict)}22` }} />
-                <div className="grow min-w-0"><div style={{ font: `700 14px ${UI}`, color: on ? C.brass : C.ink }}>{p.name}</div><div className="truncate" style={{ font: `400 10px ${MONO}`, color: C.inkDim }}>{r.incomplete ? "awaiting inputs" : COND_NAMES[p.cond].split("(")[0]}</div></div>
-                <span onClick={(e) => { e.stopPropagation(); del(p.id); }} style={{ color: C.inkDim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</span>
-              </div>); })}
-          </div>
-          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: `0 2px 10px ${C.cyanDeep}33` }}>+ Add panel</button>
-        </aside>
-
-        <main className="grow min-w-0">
-          <div className="cs-card rounded-xl relative" style={{ backgroundColor: C.surf, backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${C.surf} 0%, ${C.surf2} 100%), linear-gradient(var(--grid) 1px,transparent 1px), linear-gradient(90deg,var(--grid) 1px,transparent 1px)`, backgroundSize: "auto, 28px 28px, 28px 28px", border: `1px solid ${C.line}`, height: 360, overflow: "hidden" }}>
-            {sel ? <SlabViewer key={mode} panel={sel} /> : (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <svg width="76" height="76" viewBox="0 0 72 72" style={{ marginBottom: 14 }}><polygon points="12,30 36,18 60,30 36,42" fill="none" stroke={C.cyanDeep} strokeWidth="2" strokeLinejoin="round" /><polygon points="12,30 36,42 36,54 12,42" fill={`${C.cyanDeep}14`} stroke={C.cyanDeep} strokeWidth="1.5" strokeLinejoin="round" /><polygon points="60,30 36,42 36,54 60,42" fill={`${C.cyan}18`} stroke={C.cyan} strokeWidth="1.5" strokeLinejoin="round" /></svg>
-                <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a new slab panel</div>
-                <div style={{ font: `400 13px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a panel, then type its span, thickness and load. The slab takes shape here and results appear as you go.</div>
-                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 3px 14px ${C.cyanDeep}3a` }}>+ Add your first panel</button>
+      {/* PANEL SCHEDULE */}
+      {panels.length > 0 && (() => {
+        const th = { font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 0.8, textTransform: "uppercase", padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" };
+        const td = { font: `600 13.5px ${MONO}`, color: C.ink, padding: "7px 12px", textAlign: "right", borderTop: `1px solid ${C.line}`, whiteSpace: "nowrap" };
+        const v = (x) => (x == null ? "—" : x);
+        return (
+          <section className="mx-auto px-4 pt-4" style={{ maxWidth: 1320 }}>
+            <div className="cs-card rounded-xl overflow-hidden" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <span style={{ font: `700 13px ${UI}`, color: C.ink }}>Panel schedule</span>
+                <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>{safeN} of {panels.length} safe</span>
+                <button onClick={add} className="cs-btn ml-auto px-3 py-1.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}` }}>+ Add panel</button>
               </div>
-            )}
-            {sel && (<>
-              <div className="absolute top-3 left-4"><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COND_NAMES[sel.cond]}</div></div>
-              <div className="absolute top-3 right-4">{R?.incomplete ? <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: C.surf, color: C.inkDim, font: `600 12px ${MONO}`, border: `1px solid ${C.line}` }}>enter {R.missing.join(", ")}</span> : <VerdictBadge verdict={R.verdict} label={`${R.verdict}${R.tag ? " · " + R.tag : ""}`} size="lg" />}</div>
-              <div className="absolute bottom-3 left-4 flex gap-4" style={{ font: `600 11px ${MONO}`, color: C.inkDim }}><span>Lx <b style={{ color: C.ink }}>{sel.Lx || "-"}</b> m</span><span>Ly <b style={{ color: C.ink }}>{sel.Ly || "-"}</b> m</span><span>D <b style={{ color: C.ink }}>{sel.D || "-"}</b> mm</span></div>
-              <div className="absolute bottom-3 right-4 flex items-center gap-3" style={{ font: `500 10px ${MONO}`, color: C.inkDim }}><span className="flex items-center gap-1"><span style={{ width: 12, height: 3, background: C.brass, display: "inline-block", borderRadius: 2 }} />supported edge</span><span className="flex items-center gap-1"><span style={{ width: 6, height: 6, background: C.teal, borderRadius: 6, display: "inline-block" }} />free edge</span></div>
-            </>)}
-          </div>
-
-          {R && !R.incomplete && (
-            <div className="mt-3 csin" key={sel.id}>
-              <Group title="Moments (M = α·w·Lx²)" accent={C.teal}>
-                <RVal accent={C.teal} name="Short +ve" sym="Mx+" val={fmt(R.M.xp, 2)} unit="Tm/M" />
-                <RVal accent={C.teal} name="Long +ve" sym="My+" val={fmt(R.M.yp, 2)} unit="Tm/M" />
-                <RVal accent={C.teal} name="Short −ve" sym="Mx−" val={fmt(R.M.xn, 2)} unit="Tm/M" />
-                <RVal accent={C.teal} name="Long −ve" sym="My−" val={fmt(R.M.yn, 2)} unit="Tm/M" />
-              </Group>
-              <Group title="Reinforcement required" accent={C.brass}>
-                <RVal accent={C.brass} name="Short +ve" sym="Ast,x+" val={fmt(R.Ast.xp)} unit="mm²/M" />
-                <RVal accent={C.brass} name="Long +ve" sym="Ast,y+" val={fmt(R.Ast.yp)} unit="mm²/M" />
-                <RVal accent={C.brass} name="Short −ve" sym="Ast,x−" val={fmt(R.Ast.xn)} unit="mm²/M" />
-                <RVal accent={C.brass} name="Long −ve" sym="Ast,y−" val={fmt(R.Ast.yn)} unit="mm²/M" />
-              </Group>
-              <Group title="Spacing required" accent={C.ink2}>
-                <RVal accent={C.ink2} name="Short +ve" sym="Sx+" val={fmt(R.S.xp)} unit="mm c/c" />
-                <RVal accent={C.ink2} name="Long +ve" sym="Sy+" val={fmt(R.S.yp)} unit="mm c/c" />
-                <RVal accent={C.ink2} name="Short −ve" sym="Sx−" val={fmt(R.S.xn)} unit="mm c/c" />
-                <RVal accent={C.ink2} name="Long −ve" sym="Sy−" val={fmt(R.S.yn)} unit="mm c/c" />
-              </Group>
-              <Group title="Deflection check (IS 456)" accent={R.defl ? sColor(R.defl.status) : C.inkDim}>
-                <RVal accent={C.inkDim} name="Steel %" sym="pt,x+" val={R.defl ? fmt(R.defl.pt, 3) : "—"} unit="%" />
-                <RVal accent={C.inkDim} name="Basic" sym="span/d" val={R.defl ? R.defl.basic : "—"} unit="ratio" />
-                <RVal accent={C.inkDim} name="Modif." sym="MF" val={R.defl ? fmt(R.defl.MF, 3) : "—"} unit="factor" />
-                <RVal accent={R.defl ? sColor(R.defl.status) : C.inkDim} name="Allowable" sym="allwbl.spn." val={R.defl ? fmt(R.defl.allow, 2) : "add rebar"} unit={R.defl ? "m" : ""} color={R.defl ? sColor(R.defl.status) : C.inkDim} />
-              </Group>
-              {R.bs && (
-                <Group title="Check as per BS 8110 (fallback)" accent={C.amber}>
-                  <RVal accent={C.amber} name="Moment" sym="Mu/bd²" val={fmt(R.bs.Mubd2, 2)} unit="N/mm²" />
-                  <RVal accent={C.amber} name="Modif." sym="MF" val={fmt(R.bs.MFb, 3)} unit="factor" />
-                  <RVal accent={sColor(R.bs.stB)} name="Allowable" sym="allwbl.spn." val={fmt(R.bs.allowB, 2)} unit="m" color={sColor(R.bs.stB)} />
-                  <RVal accent={R.bs.stB === "SAFE" ? C.green : C.red} name={R.bs.extra?.verdict === "REDESIGN" ? "Verdict" : "Extra steel"} sym={R.bs.extra?.verdict === "REDESIGN" ? "STATUS" : "%age"} val={R.bs.extra ? (R.bs.extra.verdict === "REDESIGN" ? "REDESIGN" : fmt(R.bs.extra.pct, 0)) : R.bs.stB} unit={R.bs.extra?.verdict === "INCREASE" ? "%" : ""} color={R.bs.stB === "SAFE" ? C.green : C.red} />
-                </Group>
-              )}
-              <div className="mt-4">
-                <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
-                {showWork && <div className="mt-2 csin"><FormulaLedger F={F} ready={kReady} /></div>}
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                  <thead><tr>
+                    <th style={{ ...th, textAlign: "left" }}>Panel</th><th style={th}>Case</th><th style={th}>Lx × Ly (m)</th><th style={th}>D</th><th style={th}>w (T/m²)</th>
+                    <th style={th}>Bottom x</th><th style={th}>Bottom y</th><th style={th}>Top x</th><th style={th}>Top y</th><th style={{ ...th, textAlign: "left" }}>Status</th><th style={th} />
+                  </tr></thead>
+                  <tbody>
+                    {panels.map((p) => { const r = results[p.id], on = selId === p.id, done = !r.incomplete;
+                      return (
+                        <tr key={p.id} onClick={() => { setSelId(p.id); setShowWork(false); }} className="cursor-pointer" style={{ background: on ? C.brassBg : "transparent", boxShadow: on ? `inset 3px 0 0 ${C.brass}` : "none" }}>
+                          <td style={{ ...td, font: `700 13.5px ${UI}`, color: on ? C.brass : C.ink, textAlign: "left" }}>{p.name}</td>
+                          <td style={td}>{p.cond}</td><td style={td}>{v(p.Lx)} × {v(p.Ly)}</td><td style={td}>{v(p.D)}</td><td style={td}>{v(p.w)}</td>
+                          {KEYS.map(([k]) => <td key={k} style={td}>{done ? barTxt(p, r, k) : "—"}</td>)}
+                          <td style={{ ...td, font: `600 12.5px ${UI}`, color: sColor(r.verdict), textAlign: "left" }}>● {done ? r.verdict.toLowerCase() + (r.tag ? " (BS)" : "") : "awaiting inputs"}</td>
+                          <td style={{ ...td, width: 32 }}><span onClick={(e) => { e.stopPropagation(); del(p.id); }} title="Remove panel" style={{ color: C.inkDim, fontSize: 16 }}>×</span></td>
+                        </tr>); })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
-          {R?.incomplete && <div className="mt-3 px-4 py-6 rounded text-center" style={{ background: C.surf, border: `1px dashed ${C.line}`, color: C.inkDim, font: `500 14px ${UI}` }}>Enter {R.missing.join(" and ")} on the right — the slab and results build as you type.</div>}
-        </main>
+          </section>
+        );
+      })()}
 
+      <div className={"mx-auto px-4 py-4 grid grid-cols-1 gap-4 items-start " + (sel ? "lg:grid-cols-[400px_minmax(0,1fr)]" : "")} style={{ maxWidth: 1320 }}>
+        {/* LEFT — compact form */}
         {sel && (
-          <aside className="lg:w-72 shrink-0 space-y-4">
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="GEOMETRY" accent={C.teal} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Short span" hint="Lx" unit="m" value={sel.Lx} onChange={(v) => upd(sel.id, "Lx", v)} />
-                <Field label="Long span" hint="Ly" unit="m" value={sel.Ly} onChange={(v) => upd(sel.id, "Ly", v)} />
-                <Field label="Thickness" hint="D" unit="mm" value={sel.D} onChange={(v) => upd(sel.id, "D", v)} />
-                <Field label="Factored load" hint="w" unit="T/m²" value={sel.w} onChange={(v) => upd(sel.id, "w", v)} />
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="SUPPORT CONDITION" accent={C.brass} />
-              <div className="grid grid-cols-3 gap-1.5">{Object.keys(COND_NAMES).map((k) => { const kn = +k, on = sel.cond === kn; return (<button key={k} onClick={() => upd(sel.id, "cond", kn)} title={COND_NAMES[kn]} className="cs-cond rounded-lg p-1 flex flex-col items-center" style={{ background: on ? C.brassBg : C.surf2, border: `1px solid ${on ? C.brass : C.line}` }}><CondGlyph cond={kn} size={40} active={on} /><span style={{ font: `700 10px ${MONO}`, color: on ? C.brass : C.inkDim }}>{k}</span></button>); })}</div>
-              <div style={{ font: `500 11px ${UI}`, color: C.ink2, marginTop: 8, lineHeight: 1.4 }}><b style={{ color: C.brass }}>{sel.cond}.</b> {COND_NAMES[sel.cond]}</div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="REINFORCEMENT" accent={C.ink2} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Bar diameter" hint="Ø" unit="mm" value={sel.dia} onChange={(v) => upd(sel.id, "dia", v)} />
-                <Field label="Provided spacing" hint="Sx+" unit="mm" value={sel.sProv} onChange={(v) => upd(sel.id, "sProv", v)} />
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="MATERIALS" accent={C.green} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Concrete" hint="fck" unit="N/mm²" value={g.fck} onChange={(v) => setG({ ...g, fck: v })} />
-                <Field label="Steel" hint="fy" unit="N/mm²" value={g.fy} onChange={(v) => setG({ ...g, fy: v })} />
-                <Field label="Cover" unit="mm" value={g.cover} onChange={(v) => setG({ ...g, cover: v })} />
-                <Field label="Min steel" unit="%" value={g.minPct} onChange={(v) => setG({ ...g, minPct: v })} />
-              </div>
-            </div>
+          <aside className="cs-card rounded-xl px-4 py-3 lg:sticky lg:top-4" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+            <Field compact text label="Name" value={sel.name} onChange={(v) => upd(sel.id, "name", v)} />
+            <FormSec title="Geometry & load" />
+            <Field compact label="Short span" hint="Lx" unit="m" value={sel.Lx} onChange={(v) => upd(sel.id, "Lx", v)} />
+            <Field compact label="Long span" hint="Ly" unit="m" value={sel.Ly} onChange={(v) => upd(sel.id, "Ly", v)} />
+            <Field compact label="Thickness" hint="D" unit="mm" value={sel.D} onChange={(v) => upd(sel.id, "D", v)} />
+            <Field compact label="Factored load" hint="w" unit="T/m²" value={sel.w} onChange={(v) => upd(sel.id, "w", v)} />
+            <FormSec title="Support condition" />
+            <div className="grid grid-cols-9 gap-1">{Object.keys(COND_NAMES).map((k) => { const kn = +k, on = sel.cond === kn; return (<button key={k} onClick={() => upd(sel.id, "cond", kn)} title={COND_NAMES[kn]} className="rounded-md flex flex-col items-center py-0.5" style={{ background: on ? C.brassBg : C.surf2, border: `1px solid ${on ? C.brass : C.line}` }}><CondGlyph cond={kn} size={30} active={on} /><span style={{ font: `700 10px ${MONO}`, color: on ? C.brass : C.inkDim }}>{k}</span></button>); })}</div>
+            <div style={{ font: `500 12px ${UI}`, color: C.ink2, margin: "6px 0 2px" }}><b style={{ color: C.brass }}>{sel.cond}.</b> {COND_NAMES[sel.cond]}</div>
+            <FormSec title="Reinforcement" />
+            <Field compact label="Bar diameter" hint="Ø" unit="mm" value={sel.dia} onChange={(v) => upd(sel.id, "dia", v)} />
+            <Field compact label="Spacing provided, bottom" hint="Sx+" unit="mm" value={sel.sProv} onChange={(v) => upd(sel.id, "sProv", v)} />
+            <FormSec title="Materials · all panels" />
+            <Field compact label="Concrete grade" hint="fck" unit="N/mm²" value={g.fck} onChange={(v) => setG({ ...g, fck: v })} />
+            <Field compact label="Steel grade" hint="fy" unit="N/mm²" value={g.fy} onChange={(v) => setG({ ...g, fy: v })} />
+            <Field compact label="Clear cover" unit="mm" value={g.cover} onChange={(v) => setG({ ...g, cover: v })} />
+            <Field compact label="Minimum steel" unit="%" value={g.minPct} onChange={(v) => setG({ ...g, minPct: v })} />
           </aside>
         )}
+
+        {/* RIGHT — 3D + answer + checks */}
+        <main className="min-w-0">
+          {sel ? (
+            <>
+              <div className="cs-card rounded-xl relative" style={{ background: C.surf, border: `1px solid ${C.line}`, height: 280, overflow: "hidden" }}>
+                <SlabViewer key={mode} panel={sel} />
+                <div className="absolute top-3 left-4 pointer-events-none"><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>{COND_NAMES[sel.cond]} · drag to rotate</div></div>
+                {R && !R.incomplete && <div className="absolute top-3 right-4"><VerdictBadge verdict={R.verdict} label={`${R.verdict}${R.tag ? " · " + R.tag : ""}`} size="lg" /></div>}
+                <div className="absolute bottom-3 right-4 flex items-center gap-3 pointer-events-none" style={{ font: `500 11px ${UI}`, color: C.inkDim }}><span className="flex items-center gap-1"><span style={{ width: 12, height: 3, background: C.cyanDeep, display: "inline-block", borderRadius: 2 }} />continuous edge</span><span className="flex items-center gap-1"><span style={{ width: 6, height: 6, background: C.cyan, borderRadius: 6, display: "inline-block" }} />discontinuous</span></div>
+              </div>
+
+              {R && !R.incomplete && (() => {
+                const th = { font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 1, textTransform: "uppercase", padding: "8px 14px", textAlign: "right" };
+                const td = { font: `600 14px ${MONO}`, color: C.ink, padding: "8px 14px", textAlign: "right", borderTop: `1px solid ${C.line}` };
+                const coef = { xp: R.axp, yp: R.ayp, xn: R.axn, yn: R.ayn };
+                const checks = [];
+                if (R.defl) checks.push(["Deflection — IS 456 Cl 23.2.1", fmt(R.defl.allow, 2), `≥ ${sel.Lx}`, "m", R.defl.status === "SAFE"]);
+                if (R.bs) checks.push(["Deflection — BS 8110 fallback", fmt(R.bs.allowB, 2), `≥ ${sel.Lx}`, "m", R.bs.stB === "SAFE"]);
+                return (
+                  <div className="mt-3 space-y-3 csin" key={sel.id}>
+                    {/* 1 — the answer: four bar sets */}
+                    <div className="cs-card rounded-xl grid grid-cols-2 lg:grid-cols-4" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                      {KEYS.map(([k, name], i) => { const bad = Number.isNaN(R.Ast[k]); return (
+                        <div key={k} className="px-4 py-3" style={{ borderLeft: i ? `1px solid ${C.line}` : "none" }}>
+                          <div style={{ font: `600 12.5px ${UI}`, color: C.inkDim }}><span style={{ color: k.endsWith("n") ? C.red : C.teal }}>●</span> {name}</div>
+                          <div style={{ font: `700 24px ${MONO}`, color: bad ? C.red : C.ink, marginTop: 2 }}>{R.Ast[k] == null ? "—" : bad ? "fails" : <>Ø{sel.dia} @ {fmt(R.S[k], 0)}</>}</div>
+                          <div style={{ font: `400 12px ${UI}`, color: bad ? C.red : C.inkDim }}>{R.Ast[k] == null ? "edge discontinuous — no hogging steel" : bad ? "section too thin — increase D" : `Ast ${fmt(R.Ast[k], 0)} mm²/m`}</div>
+                        </div>); })}
+                    </div>
+
+                    {/* 2 — summary + checks */}
+                    <div className="cs-card rounded-xl overflow-x-auto" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                      <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                        <thead><tr><th style={{ ...th, textAlign: "left" }}>Design summary</th><th style={th}>Coeff.</th><th style={th}>M (T·m/m)</th><th style={th}>Ast (mm²/m)</th><th style={th}>Spacing (mm)</th></tr></thead>
+                        <tbody>
+                          {KEYS.map(([k, , sym]) => (
+                            <tr key={k}>
+                              <td style={{ ...td, font: `500 13.5px ${UI}`, color: C.ink2, textAlign: "left" }}>{sym}</td>
+                              <td style={td}>{coef[k] ? fmt(coef[k], 3) : "—"}</td><td style={td}>{fmt(R.M[k], 3)}</td><td style={td}>{fmt(R.Ast[k], 0)}</td><td style={td}>{fmt(R.S[k], 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="cs-card rounded-xl overflow-x-auto" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                      <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                        <thead><tr><th style={{ ...th, textAlign: "left" }}>Check</th><th style={th}>Allowable span</th><th style={th}>Limit</th><th style={{ ...th, textAlign: "left" }}>Unit</th><th style={th}>Result</th></tr></thead>
+                        <tbody>
+                          {checks.length ? checks.map(([name, val, lim, unit, ok]) => (
+                            <tr key={name}>
+                              <td style={{ ...td, font: `500 13.5px ${UI}`, color: C.ink2, textAlign: "left" }}>{name}</td>
+                              <td style={{ ...td, color: ok ? C.ink : C.red }}>{val}</td><td style={{ ...td, color: C.ink2 }}>{lim}</td>
+                              <td style={{ ...td, font: `500 12px ${MONO}`, color: C.inkDim, textAlign: "left" }}>{unit}</td>
+                              <td style={{ ...td, font: `700 12.5px ${UI}`, color: ok ? C.green : C.red }}>{ok ? "✓ OK" : "✗ FAIL"}</td>
+                            </tr>
+                          )) : <tr><td colSpan={5} style={{ ...td, font: `500 13px ${UI}`, color: C.red, textAlign: "left" }}>Deflection not checked — short-span bottom steel fails flexure.</td></tr>}
+                          {R.bs?.extra && <tr><td colSpan={5} style={{ ...td, font: `500 13px ${UI}`, color: C.red, textAlign: "left" }}>{R.bs.extra.verdict === "REDESIGN" ? "Redesign — no steel increase can satisfy deflection. Increase D." : `Increase short-span bottom steel by ${fmt(R.bs.extra.pct, 0)}% (to ${fmt(R.bs.extra.astReq2, 0)} mm²/m).`}</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* 3 — details */}
+                    <div>
+                      <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
+                      {showWork && (
+                        <div className="mt-2 csin">
+                          <div style={{ font: `400 13px/1.6 ${UI}`, color: C.ink2, marginBottom: 8 }}>
+                            Ly/Lx = {fmt(R.r, 3)} · d = {fmt(R.d, 0)} mm · Ast,min = {fmt(R.minAst, 0)} mm²/m
+                            {R.defl && <> · pt = {fmt(R.defl.pt, 3)}% · MF = {fmt(R.defl.MF, 3)} · basic L/d = {R.defl.basic}</>}
+                          </div>
+                          <FormulaLedger F={F} ready={kReady} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+              {R?.incomplete && <div className="mt-3 px-4 py-6 rounded-xl text-center" style={{ background: C.surf, border: `1px dashed ${C.line}`, color: C.inkDim, font: `500 14px ${UI}` }}>Enter {R.missing.join(", ")} on the left — results appear once all inputs are filled.</div>}
+            </>
+          ) : (
+            <div className="cs-card rounded-xl flex flex-col items-center justify-center text-center px-6" style={{ background: C.surf, border: `1px solid ${C.line}`, minHeight: 280 }}>
+              <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a two-way slab panel</div>
+              <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 400, marginTop: 6, lineHeight: 1.5 }}>Add a panel, then fill in spans, thickness, load, support case and bars on the left.</div>
+              <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}` }}>+ Add your first panel</button>
+            </div>
+          )}
+        </main>
       </div>
       {showReport && <Report panels={panels} results={results} g={g} project={project} ready={kReady} onClose={() => setShowReport(false)} onXlsx={exportXlsx} />}
     </div>
