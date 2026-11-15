@@ -60,11 +60,11 @@ function Modal({ context, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" style={{ background: "rgba(21,33,40,0.5)" }} onClick={onClose}>
-      <div className="cs-card rounded-2xl w-full" style={{ maxWidth: 460, background: C.surf, border: `1px solid ${C.line}` }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" style={{ background: "rgba(3,8,18,0.62)", backdropFilter: "blur(3px)" }} onClick={onClose}>
+      <div className="cs-card cs-pop rounded-2xl w-full" style={{ maxWidth: 460, background: C.surf, border: `1px solid ${C.line}` }} onClick={(e) => e.stopPropagation()}>
         {state === "done" ? (
           <div className="px-7 py-10 text-center flex flex-col items-center">
-            <div className="flex items-center justify-center rounded-full mb-4" style={{ width: 56, height: 56, background: "rgba(15,143,91,0.12)" }}>
+            <div className="flex items-center justify-center rounded-full mb-4" style={{ width: 56, height: 56, background: `${C.green}1f` }}>
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke={C.green} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </div>
             <div style={{ font: `700 20px ${UI}`, color: C.ink }}>Thank you</div>
@@ -132,7 +132,7 @@ export default function Feedback({ context = "app", inline = false }) {
       ) : (
         <button onClick={() => setOpen(true)} title="Share feedback"
           className="cs-btn fixed z-50 flex items-center gap-2 px-4 py-3 rounded-full"
-          style={{ right: 22, bottom: 22, background: C.teal, color: "#fff", font: `700 14px ${UI}`, boxShadow: "0 6px 20px rgba(11,126,150,0.35)" }}>
+          style={{ right: 22, bottom: 22, background: C.cyanDeep, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 6px 22px ${C.cyanDeep}55` }}>
           <ChatIcon color="#fff" /> Feedback
         </button>
       )}

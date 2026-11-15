@@ -4,8 +4,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Lato", "Source Sans 3", "Segoe UI", "system-ui", "sans-serif"],
-        mono: ["IBM Plex Mono", "ui-monospace", "Menlo", "monospace"],
+        sans: ["Inter", "Segoe UI", "system-ui", "sans-serif"],
+        serif: ["DM Serif Display", "Georgia", "Times New Roman", "serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "Menlo", "monospace"],
       },
     },
   },

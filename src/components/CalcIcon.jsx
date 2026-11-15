@@ -1,4 +1,5 @@
 import React from "react";
+import { C } from "../theme.js";
 
 /* =====================================================================
    Line icons for each calculator. Structural-engineering themed,
@@ -110,7 +111,7 @@ const ICONS = {
   ),
 };
 
-export default function CalcIcon({ name, size = 30, color = "#33454F", strokeWidth = 1.4 }) {
+export default function CalcIcon({ name, size = 30, color = C.ink2, strokeWidth = 1.4 }) {
   return (
     <svg
       width={size}

@@ -2,8 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme variables live in GLOBAL_CSS (theme.js), keyed by [data-theme].
+   These fallbacks apply before the shared styles inject / JS runs. */
 :root {
-  --bg: #edf1f5;
+  --bg: #faf7f2;
+  --text: #0a1628;
 }
 
 html,
@@ -15,12 +18,14 @@ body,
 body {
   margin: 0;
   background: var(--bg);
-  font-family: "Lato", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-/* larger, more comfortable base than the old sheet */
+/* larger, more comfortable base — the "bigger fonts" ask */
 :root {
-  font-size: 16px;
+  font-size: 17px;
 }
