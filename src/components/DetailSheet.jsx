@@ -135,3 +135,70 @@ export function printDetails({ project, sheets }) {
   w.document.open(); w.document.write(html); w.document.close();
   setTimeout(() => { w.focus(); w.print(); }, 500);
 }
+
+/* ---------------- shared slab-detail pieces ---------------- */
+export const BW = 230, DB = 450; // indicative beam (as per beam detail)
+/** break line (zig-zag) along a straight edge a-b */
+export function Brk({ a, b }) {
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, hor = a[1] === b[1], z = 1.6;
+  return <Poly p={hor ? [a, [mx - z, my], [mx - z / 2, my - z * 1.5], [mx + z / 2, my + z * 1.5], [mx + z, my], b] : [a, [mx, my - z], [mx + z * 1.5, my - z / 2], [mx - z * 1.5, my + z / 2], [mx, my + z], b]} k="EDGE" />;
+}
+/** "SLAB REINF. MARKED" table: rows[0] = header */
+export function MarkTable({ rows, x, y, cw = [16, 92, 172], title = "SLAB REINF. MARKED" }) {
+  const rh = 7, w = cw[0] + cw[1] + cw[2];
+  return <g>
+    <Tx x={x} y={y - 4} h={3.5}>{title}</Tx>
+    <Rect x={x} y={y} w={w} h={rows.length * rh} k="TITLE" />
+    {rows.map((rw, i) => <g key={i}>{i > 0 && <Ln a={[x, y + i * rh]} b={[x + w, y + i * rh]} k="EDGE" />}
+      {rw.map((c, j) => <Tx key={j} x={x + 2 + cw.slice(0, j).reduce((a, b) => a + b, 0)} y={y + i * rh + 4.8}>{c}</Tx>)}</g>)}
+    {[cw[0], cw[0] + cw[1]].map((c, i) => <Ln key={"v" + i} a={[x + c, y]} b={[x + c, y + rows.length * rh]} k="EDGE" />)}
+  </g>;
+}
+/** slab section cut through two beams: eL/eR "C" (slab continues, break line) or "D" (slab stops at the beam);
+ *  bottom main bars as a line, cross bars as dots; extra top bars mL/mR with extents ext[C|D] from the beam face. */
+export function slabSection({ x0, y0, boxW, boxH = 60, span, D, dia, cov, ext, dist, bar, eL, eR, mL, mR, mainS, crossS, mainOuter, title }) {
+  const cn = ext.C + 150, contL = eL === "C" ? cn : 0, contR = eR === "C" ? cn : 0; // slab drawn just past the top bars
+  const Wsm = span + 2 * BW + contL + contR, s = fitScale(Wsm, DB + 400, boxW - 10, boxH, [10, 15, 20, 25, 30, 40, 50]);
+  const left = x0 + (boxW - Wsm / s) / 2 + (BW + contL) / s, Q = (u, v) => [left + u / s, y0 + v / s];
+  const out = [];
+  const uL = -BW - contL, uR = span + BW + contR;
+  // concrete: slab top, slab soffit between beams, beams; break lines at continuous ends; beam outer face at discontinuous ends
+  out.push(<Ln key="top" a={Q(uL, 0)} b={Q(uR, 0)} />);
+  const soffit = [[uL, -BW], [0, span], [span + BW, uR]];
+  soffit.forEach(([a, b], i) => b > a && out.push(<Ln key={"sf" + i} a={Q(a, D)} b={Q(b, D)} />));
+  [[-BW, 0], [span, span + BW]].forEach(([a, b], i) => out.push(<Poly key={"bm" + i} p={[Q(a, D), Q(a, DB), Q(b, DB), Q(b, D)]} />));
+  if (eL === "D") out.push(<Ln key="dl" a={Q(-BW, 0)} b={Q(-BW, D)} />); else out.push(<Brk key="bl" a={Q(uL, -40)} b={Q(uL, D + 40)} />);
+  if (eR === "D") out.push(<Ln key="dr" a={Q(span + BW, 0)} b={Q(span + BW, D)} />); else out.push(<Brk key="br" a={Q(uR, -40)} b={Q(uR, D + 40)} />);
+  // beam links and corner bars (indicative)
+  [[-BW, 0], [span, span + BW]].forEach(([a, b], i) => { out.push(<Rect key={"lk" + i} x={Q(a + 25, 0)[0]} y={Q(0, 25)[1]} w={(BW - 50) / s} h={(DB - 50) / s} k="LINK" />);
+    [[a + 45, 45], [b - 45, 45], [a + 45, DB - 45], [b - 45, DB - 45]].forEach(([u, v], j) => out.push(<Dot key={"bb" + i + j} c={Q(u, v)} />)); });
+  out.push(<Leader key="bml" to={Q(span + BW / 2, DB)} at={[Q(span + BW / 2, 0)[0] - 6, Q(0, DB)[1] + 7]} text="BEAM AS PER BEAM DETAIL" a="end" />);
+  // bottom althrough bars: main direction as a line (outer or inner layer), the other direction as dots
+  const vMain = D - cov - dia / 2 - (mainOuter ? 0 : dia), vCross = D - cov - dia / 2 - (mainOuter ? dia : 0);
+  const bL = eL === "C" ? uL : -BW + cov, bR = eR === "C" ? uR : span + BW - cov;
+  out.push(<Ln key="bot" a={Q(bL, vMain)} b={Q(bR, vMain)} k="BAR" />);
+  const step = Math.max(crossS, 3 * s);
+  const dots = []; for (let u = bL + step / 2; u < bR; u += step) if (!(u > -BW && u < 0) && !(u > span && u < span + BW)) dots.push(u);
+  dots.forEach((u, i) => out.push(<Dot key={"d" + i} c={Q(u, vCross)} />));
+  out.push(<Leader key="bl1" to={Q(span * 0.3, vMain)} at={[Q(span * 0.3, 0)[0] - 10, Q(0, DB)[1] + 7]} text={`${bar(mainS)} BOTTOM`} a="end" />);
+  const dc = dots.find((u) => u > span * 0.55) ?? dots[0];
+  if (dc != null) out.push(<Leader key="bl2" to={Q(dc, vCross)} at={[Q(dc, 0)[0] + 3, Q(0, DB)[1] + 13]} text={`${bar(crossS)} BOTTOM`} />);
+  // extra top bars at each support + distribution dots under them
+  const vt = cov + dia / 2;
+  [[eL, mL, 0, -1], [eR, mR, span, 1]].forEach(([ed, mk, face, side], i) => {
+    const Lb = ext[ed], inner = face - side * Lb, C_ = ed === "C";
+    const outerU = C_ ? face + side * (BW + Lb) : face + side * (BW - cov);
+    out.push(<Poly key={"tp" + i} p={C_ ? [Q(outerU, vt), Q(inner, vt)] : [Q(outerU, D - cov), Q(outerU, vt), Q(inner, vt)]} k="BAR" />);
+    const ua = Math.min(inner, C_ ? outerU : face), ub = Math.max(inner, C_ ? outerU : face), stp = Math.max(dist, 3 * s);
+    for (let u = ua + stp / 2; u < ub; u += stp)
+      if (!(u > -BW && u < 0) && !(u > span && u < span + BW)) out.push(<Dot key={"td" + i + u} c={Q(u, vt + dia)} />);
+    out.push(<Dim key={"dm" + i} p1={Q(side < 0 ? face : inner, 0)} p2={Q(side < 0 ? inner : face, 0)} off={-4} text={`${Lb}`} />);
+    if (C_) out.push(<Dim key={"dmc" + i} p1={Q(side < 0 ? outerU : face + BW, 0)} p2={Q(side < 0 ? face - BW : outerU, 0)} off={-4} text={`${Lb}`} />);
+    const lu = face - side * Lb * 0.45;
+    out.push(<Leader key={"tl" + i} to={Q(lu, vt)} at={[Q(lu, 0)[0] - side * 4, Q(0, 0)[1] - 11]} text={mk} a={side < 0 ? "start" : "end"} />);
+  });
+  out.push(<Dim key="th" p1={Q(uL, 0)} p2={Q(uL, D)} off={-5} text={`${D}`} vertical />);
+  out.push(<Dim key="sp" p1={Q(0, DB)} p2={Q(span, DB)} off={22} text={`${span}`} />);
+  out.push(<ViewTitle key="vt" x={Q(span / 2, 0)[0]} y={Q(0, DB)[1] + 38} title={title} scale={s} />);
+  return out;
+}

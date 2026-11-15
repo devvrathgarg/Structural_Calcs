@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt } from "../theme.js";
 import { Field, FormSec, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
+import { printDetails, Ln, Dot, Leader, Dim, ViewTitle, Cut, fitScale, Brk, slabSection, MarkTable } from "../components/DetailSheet.jsx";
 
 /* =====================================================================
    ONE-WAY SLAB DESIGN
@@ -141,6 +142,59 @@ function buildFormulas(p, r, g) {
   return F;
 }
 
+/* ===== typical one-way slab detail sheet (same drafting style and conventions as the two-way sheet) =====
+   Edge panel: outer support discontinuous, inner continuous; internal panel: both continuous (as the coefficients).
+   Top bars over continuous supports Ø@sTop to 0.3 L each side; at a discontinuous end 50 % of mid-span steel to
+   0.1 L, bent down into the beam. Bottom main bars althrough; distribution = minimum steel, ≤ min(5d, 450). */
+function oneWayDetail(p, r, g, sheetNo) {
+  const L = p.B * 1000, dia = p.dia, cov = g.cover, d = r.d;
+  const up50 = (v) => Math.ceil(v / 50) * 50, sp = (s, cap) => Math.min(Math.floor(s / 25) * 25, Math.floor(cap / 25) * 25);
+  const ext = { C: up50(0.3 * L), D: up50(0.1 * L) };
+  const bar = (s) => `${dia}Ø @ ${s} C/C`;
+  const dist = sp((Math.PI * dia * dia / 4) * 1000 / (g.minPct / 100 * 1000 * p.D), Math.min(5 * d, 450));
+  const half = sp(2 * r.sMid, Math.min(3 * d, 300));
+  const eL = p.type === "internal" ? "C" : "D", eR = "C";
+  const rows = [["MARK", "BARS", "LOCATION"], ["n", bar(r.sTop), `TOP OVER CONTINUOUS SUPPORT, ${ext.C} EACH SIDE OF BEAM`]];
+  if (eL === "D") rows.push(["n1", bar(half), `TOP AT DISCONT. SUPPORT (50% MID-SPAN), ${ext.D} FROM BEAM`]);
+  rows.push(["—", bar(r.sMid), "BOTTOM MAIN BARS, ALTHROUGH (SPAN DIRECTION)"], ["DIST.", bar(dist), "DISTRIBUTION, BOTTOM ALTHROUGH & UNDER TOP BARS"]);
+  const secA = slabSection({ D: p.D, dia, cov, ext, dist, bar, x0: 40, boxW: 590, boxH: 120, y0: 80, span: L, eL, eR, mL: eL === "C" ? "n" : "n1", mR: "n",
+    mainS: r.sMid, crossS: dist, mainOuter: true, title: `SECTION A-A - ${String(p.name).toUpperCase()} (${p.type === "internal" ? "INTERNAL" : "EDGE"} PANEL)` });
+  // partial section B-B across the span, at mid-span: main bars as dots (outer layer), distribution as a line above
+  const Wb = 1500, sb = fitScale(Wb, p.D, 250, 40, [5, 10, 15, 20, 25]), bx = 60, by = 250, Q = (u, v) => [bx + u / sb, by + v / sb];
+  const vMain = p.D - cov - dia / 2, vDist = vMain - dia, dots = [];
+  for (let u = r.sMid / 2; u < Wb; u += Math.max(r.sMid, 3 * sb)) dots.push(u);
+  const secB = <g key="b">
+    <Ln a={Q(0, 0)} b={Q(Wb, 0)} /><Ln a={Q(0, p.D)} b={Q(Wb, p.D)} />
+    <Brk a={Q(0, -30)} b={Q(0, p.D + 30)} /><Brk a={Q(Wb, -30)} b={Q(Wb, p.D + 30)} />
+    <Ln a={Q(30, vDist)} b={Q(Wb - 30, vDist)} k="BAR" />
+    {dots.map((u, i) => <Dot key={i} c={Q(u, vMain)} />)}
+    <Leader to={Q(dots[1] ?? dots[0], vMain)} at={[Q(dots[1] ?? dots[0], 0)[0] + 4, Q(0, p.D)[1] + 9]} text={`${bar(r.sMid)} BOTTOM (MAIN)`} />
+    <Leader to={Q(Wb * 0.7, vDist)} at={[Q(Wb * 0.7, 0)[0] + 4, Q(0, 0)[1] - 7]} text={`${bar(dist)} DISTRIBUTION`} />
+    <Dim p1={Q(Wb, 0)} p2={Q(Wb, p.D)} off={6} text={`${p.D}`} vertical />
+    <ViewTitle x={Q(Wb / 2, 0)[0]} y={Q(0, p.D)[1] + 26} title="SECTION B-B (TYPICAL, AT MID-SPAN)" scale={sb} />
+  </g>;
+  const aMid = secA.find((q) => q.key === "sp").props, cx = aMid.p1[0] + (aMid.p2[0] - aMid.p1[0]) * 0.45;
+  const cut = <g key="cut"><Cut c={[cx, 80 - 14]} dir="left" letter="B" /><Cut c={[cx, aMid.p1[1] + 11]} dir="left" letter="B" /></g>;
+  const notes = [
+    "ALL DIMENSIONS IN mm UNLESS NOTED. DO NOT SCALE THE DRAWING.",
+    `CONCRETE M${p.fck}, REINFORCEMENT Fe${g.fy} TO IS 1786. SLAB ${p.D} THK. CLEAR COVER ${cov}.`,
+    `BOTTOM MAIN BARS ${bar(r.sMid)} ALTHROUGH IN THE SPAN DIRECTION (OUTER LAYER), DISTRIBUTION ${bar(dist)} ABOVE THEM. CARRY ALL BOTTOM BARS INTO THE SUPPORTS; DO NOT CURTAIL.`,
+    `TOP BARS n ${bar(r.sTop)} OVER CONTINUOUS SUPPORTS EXTEND 0.3 L = ${ext.C} FROM THE BEAM FACE ON EACH SIDE.`,
+    ...(eL === "D" ? [`AT THE DISCONTINUOUS SUPPORT TOP BARS n1 = 50% OF MID-SPAN STEEL (${bar(half)}), 0.1 L = ${ext.D} FROM THE BEAM FACE, BENT DOWN INTO THE BEAM.`] : []),
+    `DISTRIBUTION BARS ${bar(dist)} UNDER ALL TOP BARS. MIN. STEEL ${g.minPct}% OF bD (IS 456 CL 26.5.2.1); SPACING OF MAIN BARS <= min(3d, 300), DISTRIBUTION <= min(5d, 450) (CL 26.3.3).`,
+    "LAPS AND ANCHORAGE AS PER IS 456 CL 26.2. NO LAPS OF MAIN BARS IN HIGH-MOMENT ZONES; NOT MORE THAN 50% LAPPED AT ONE SECTION.",
+    "BEAMS ARE INDICATIVE: AS PER BEAM DETAIL. DRAWINGS TO BE READ WITH ARCHITECTURAL DRAWINGS; VERIFY DIMENSIONS AT SITE.",
+    "OPENINGS LARGER THAN SHOWN NOT TO BE MADE WITHOUT STRUCTURAL REVIEW.",
+  ];
+  return {
+    title: `TYPICAL SLAB DETAIL - ${String(p.name).toUpperCase()} (ONE-WAY)`,
+    drgNo: `CS-SL-${String(sheetNo).padStart(2, "0")}`,
+    scales: [...new Set([secA.find((q) => q.key === "vt").props.scale, sb])].map((v) => `1:${v}`).join(", "),
+    notes,
+    body: <g>{secA}{cut}{secB}<MarkTable rows={rows} x={350} y={250} /></g>,
+  };
+}
+
 const DEF_PANEL = { type: "edge", B: null, D: null, fck: 25, E: null, live: null, fire: null, dia: null };
 
 export default function OneWaySlab({ onBack }) {
@@ -175,6 +229,8 @@ export default function OneWaySlab({ onBack }) {
     XLSX.writeFile(wb, "civilspace_one_way_slab.xlsx");
   };
 
+  const detailable = panels.filter((p) => { const r = results[p.id]; return !r.incomplete && !r.inadequate; });
+  const downloadDetails = () => printDetails({ project, sheets: detailable.map((p, i) => oneWayDetail(p, results[p.id], g, i + 1)) });
   const F = sel && R ? buildFormulas(sel, R, g) : [];
   const gField = (k, v) => setG({ ...g, [k]: v });
 
@@ -199,6 +255,7 @@ export default function OneWaySlab({ onBack }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="one-way-slab" inline />
+            <button onClick={downloadDetails} disabled={!detailable.length} title={detailable.length ? "Opens a print-ready A1 sheet per panel — choose Save as PDF" : "Complete a panel first"} className="cs-btn px-3.5 py-2 rounded-lg" style={{ font: `600 12px ${UI}`, border: `1px solid ${detailable.length ? C.brass : C.line}`, color: detailable.length ? C.brass : C.inkDim, background: C.surf }}>Typical details (PDF)</button>
             <button onClick={exportXlsx} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={{ font: `600 12px ${UI}`, border: `1px solid ${panels.length ? C.brass : C.line}`, color: panels.length ? C.brass : C.inkDim, background: C.surf }}>Export Excel</button>
             <ThemeToggle />
           </div>
