@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt } from "../theme.js";
-import { Field, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
+import { Field, FormSec, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -371,12 +371,3 @@ export default function OneWaySlab({ onBack }) {
   );
 }
 
-/* small section divider inside the compact form */
-function FormSec({ title, right }) {
-  return (
-    <div className="flex items-center justify-between" style={{ margin: "12px 0 2px", paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-      <span style={{ font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 1, textTransform: "uppercase" }}>{title}</span>
-      {right}
-    </div>
-  );
-}

@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt, sColor } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg, useNumText } from "../components/ui.jsx";
+import { Field, FormSec, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg, useNumText } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -113,10 +113,10 @@ function computeFooting(f) {
 function buildFormulas(f, res) {
   if (res.incomplete) return [];
   const d2 = (v) => fmt(v, 2), d3 = (v) => fmt(v, 3), d0 = (v) => fmt(v, 0), d4 = (v) => fmt(v, 4);
-  const gx = res.govX, gz = res.govZ, c = res.govXcombo;
+  const gx = res.govX, gz = res.govZ;
   const F = [];
   F.push({ label: "Gross soil pressure", sym: "p = \\dfrac{1.1P/A \\pm 6M_x/L_xL_z^2 \\pm 6M_z/L_zL_x^2}{LF}", sub: `A=${d2(f.Lx * f.Lz)}\\,m^2`, val: `${d2(res.maxCorner)} / ${d2(res.minCorner)} kN/m²`, cl: `SBC ${f.SBC}` });
-  F.push({ label: "Net design pressure", sym: "p_{des} = \\dfrac{P/A + 6M_x/L_xL_z^2 + 6M_z/L_zL_x^2}{LF}", sub: `combo ${c.label}`, val: `${d2(gx.pdes)} kN/m²`, cl: "for BM" });
+  F.push({ label: "Net design pressure", sym: "p_{des} = \\dfrac{P/A + 6M_x/L_xL_z^2 + 6M_z/L_zL_x^2}{LF}", val: `${d2(gx.pdes)} kN/m²`, cl: "for BM" });
   F.push({ label: "Design moment Mux", sym: "M_{ux} = p_{des}\\dfrac{(L_x - a_x)^2}{8}\\,LF\\,L_z", sub: `a_x=${d0(f.Pedx)}mm`, val: `${d2(gx.Mux_d)} kN·m`, cl: "cantilever" });
   F.push({ label: "Effective depth", sym: "d_x = D - c - 24,\\ \\ d_z = D - c - 8", sub: `${f.Dprov}-${f.cover}`, val: `${d0(gx.dx)} / ${d0(gx.dz)} mm`, cl: "sheet" });
   F.push({ label: "Min depth reqd", sym: "d_{min} = \\sqrt{\\dfrac{M_{ux}\\cdot10^6}{3.32\\,L_x}} + c + 10", sub: `M_{ux}=${d2(gx.Mux_d)}`, val: `${d2(res.minDreqd)} mm vs ${f.Dprov}`, cl: "singly reinf" });
@@ -131,7 +131,7 @@ const d1 = (v) => fmt(v, 1);
 
 /* ---- plan-view diagram ---- */
 function FootingPlan({ f, res }) {
-  const w = 460, h = 300, pad = 54;
+  const w = 460, h = 300, pad = 36;
   const Lx = f.Lx > 0 ? f.Lx : 2, Lz = f.Lz > 0 ? f.Lz : 2;
   const s = Math.min((w - pad * 2) / Lx, (h - pad * 2) / Lz);
   const fw = Lx * s, fh = Lz * s, x0 = (w - fw) / 2, y0 = (h - fh) / 2;
@@ -228,7 +228,7 @@ export default function IsolatedFooting({ onBack }) {
   return (
     <div className="min-h-screen cs-bp" style={{ color: C.ink, fontFamily: UI }}>
       {/* header */}
-      <header className="px-4 pt-4 mx-auto" style={{ maxWidth: 1480 }}>
+      <header className="px-4 pt-4 mx-auto" style={{ maxWidth: 1320 }}>
         <div className="cs-card flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
           {onBack && (
             <button onClick={onBack} className="cs-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.surf, color: C.ink2, font: `600 13px ${UI}` }}>
@@ -237,7 +237,7 @@ export default function IsolatedFooting({ onBack }) {
           )}
           <div>
             <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Isolated Footing Design</div>
-            <div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>BIAXIAL · IS 456:2000</div>
+            <div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>Biaxial · IS 456:2000</div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
             <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span>
@@ -251,140 +251,170 @@ export default function IsolatedFooting({ onBack }) {
         </div>
       </header>
 
-      <div className="mx-auto px-4 py-4 flex flex-col lg:flex-row gap-4" style={{ maxWidth: 1480 }}>
-        {/* footing list */}
-        <aside className="lg:w-52 shrink-0">
-          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 12px ${UI}`, color: C.inkDim }}>Footings</span>{footings.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} safe</span>}</div>
-          <div className="space-y-1.5">
-            {footings.map((f) => { const r = results[f.id], on = selId === f.id; return (
-              <div key={f.id} onClick={() => { setSelId(f.id); setShowWork(false); }} className={"cs-panel px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2 " + (on ? "cs-card" : "")} style={{ background: C.surf, border: `1px solid ${on ? C.brass : C.line}`, borderLeft: `3px solid ${on ? C.brass : sColor(r.verdict)}` }}>
-                <span style={{ width: 9, height: 9, borderRadius: 9, background: sColor(r.verdict), flexShrink: 0 }} />
-                <div className="grow min-w-0"><div style={{ font: `700 14px ${UI}`, color: on ? C.brass : C.ink }}>{f.name}</div><div className="truncate" style={{ font: `400 10px ${MONO}`, color: C.inkDim }}>{r.incomplete ? "awaiting inputs" : `${r.verdict} · ${f.Lx}×${f.Lz}m`}</div></div>
-                <span onClick={(e) => { e.stopPropagation(); del(f.id); }} style={{ color: C.inkDim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</span>
-              </div>); })}
-          </div>
-          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: `0 2px 10px ${C.cyanDeep}33` }}>+ Add footing</button>
-        </aside>
-
-        {/* center */}
-        <main className="grow min-w-0">
-          <div className="cs-card rounded-xl relative" style={{ backgroundColor: C.surf, backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${C.surf} 0%, ${C.surf2} 100%)`, border: `1px solid ${C.line}`, minHeight: 300, overflow: "hidden" }}>
-            {sel ? (
-              <div className="p-4">
-                <div className="flex items-start justify-between">
-                  <div><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{sel.combos.length} load combination{sel.combos.length === 1 ? "" : "s"} · plan</div></div>
-                  {R && !R.incomplete && <VerdictBadge verdict={R.verdict} size="lg" />}
-                </div>
-                <div style={{ height: 300, marginTop: 4 }}><FootingPlan f={sel} res={R} /></div>
+      {/* FOOTING SCHEDULE — every footing at a glance; click a row to edit it below */}
+      {footings.length > 0 && (() => {
+        const th = { font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 0.8, textTransform: "uppercase", padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" };
+        const td = { font: `600 13.5px ${MONO}`, color: C.ink, padding: "7px 12px", textAlign: "right", borderTop: `1px solid ${C.line}`, whiteSpace: "nowrap" };
+        const v = (x) => (x == null ? "—" : x);
+        return (
+          <section className="mx-auto px-4 pt-4" style={{ maxWidth: 1320 }}>
+            <div className="cs-card rounded-xl overflow-hidden" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <span style={{ font: `700 13px ${UI}`, color: C.ink }}>Footing schedule</span>
+                <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>{safeN} of {footings.length} safe</span>
+                <button onClick={add} className="cs-btn ml-auto px-3 py-1.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}` }}>+ Add footing</button>
               </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6" style={{ minHeight: 300 }}>
-                <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start an isolated footing</div>
-                <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a footing, enter its size, pedestal and load combinations. Soil pressure, steel and shear checks build as you type.</div>
-                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 3px 14px ${C.cyanDeep}3a` }}>+ Add your first footing</button>
-              </div>
-            )}
-          </div>
-
-          {R && !R.incomplete && (
-            <div className="mt-3 csin" key={sel.id}>
-              <Group title="Soil bearing pressure (service)" accent={R.checks.pressureOK ? C.green : C.red} cols="grid-cols-2 sm:grid-cols-4">
-                <RVal accent={C.teal} name="Max corner" sym="p,max" val={fmt(R.maxCorner, 1)} unit="kN/m²" color={R.checks.pressureOK ? undefined : C.red} />
-                <RVal accent={C.teal} name="Min corner" sym="p,min" val={fmt(R.minCorner, 1)} unit="kN/m²" color={R.minCorner < 0 ? C.red : undefined} />
-                <RVal accent={C.teal} name="Allowable (SBC)" sym="qa" val={fmt(sel.SBC, 0)} unit="kN/m²" />
-                <RVal accent={R.checks.pressureOK ? C.green : C.red} name="Pressure check" sym="p≤SBC" val={R.checks.pressureOK ? "OK" : "HIGH"} color={R.checks.pressureOK ? C.green : C.red} />
-              </Group>
-              <Group title="Depth" accent={R.checks.depthOK ? C.green : C.red} cols="grid-cols-2 sm:grid-cols-4">
-                <RVal accent={C.violet} name="Min depth reqd" sym="Dmin" val={fmt(R.minDreqd, 0)} unit="mm" />
-                <RVal accent={C.violet} name="Provided" sym="D" val={fmt(sel.Dprov, 0)} unit="mm" />
-                <RVal accent={C.violet} name="Eff. depth x / z" sym="dx,dz" val={`${fmt(R.govX.dx, 0)}/${fmt(R.govZ.dz, 0)}`} unit="mm" />
-                <RVal accent={R.checks.depthOK ? C.green : C.red} name="Depth check" sym="D≥Dmin" val={R.checks.depthOK ? "OK" : "INCREASE"} color={R.checks.depthOK ? C.green : C.red} />
-              </Group>
-              <Group title="Reinforcement" accent={C.brass} cols="grid-cols-2 sm:grid-cols-4">
-                <RVal accent={C.brass} name="Steel % (x)" sym="pt,x" val={R.govX.overX ? "OVER" : fmt(R.govX.ptx, 3)} unit="%" color={R.govX.overX ? C.red : undefined} />
-                <RVal accent={C.brass} name="Ast reqd (x)" sym="Ast,x" val={R.govX.overX ? "—" : fmt(R.govX.Astx, 0)} unit="mm²/m" />
-                <RVal accent={C.brass} name={`Spacing reqd Ø${sel.dia} (x)`} sym="Sx" val={R.govX.overX ? "—" : fmt(R.govX.spx, 0)} unit="mm" />
-                <RVal accent={R.checks.steelOK ? C.green : C.red} name={`Provided (x) @${sel.spX}`} sym="Ast,prov" val={fmt(R.AstxProv, 0)} unit="mm²/m" color={R.checks.steelOK ? C.green : C.red} />
-                <RVal accent={C.brass} name="Steel % (z)" sym="pt,z" val={R.govZ.overZ ? "OVER" : fmt(R.govZ.ptz, 3)} unit="%" color={R.govZ.overZ ? C.red : undefined} />
-                <RVal accent={C.brass} name="Ast reqd (z)" sym="Ast,z" val={R.govZ.overZ ? "—" : fmt(R.govZ.Astz, 0)} unit="mm²/m" />
-                <RVal accent={C.brass} name={`Spacing reqd Ø${sel.dia} (z)`} sym="Sz" val={R.govZ.overZ ? "—" : fmt(R.govZ.spz, 0)} unit="mm" />
-                <RVal accent={C.brass} name={`Provided (z) @${sel.spZ}`} sym="Ast,prov" val={fmt(R.AstzProv, 0)} unit="mm²/m" />
-              </Group>
-              <Group title="One-way (flexural) shear" accent={R.checks.shearOK ? C.green : C.red} cols="grid-cols-2 sm:grid-cols-4">
-                <RVal accent={C.ink2} name="τ acting (x)" sym="τx" val={fmt(R.shearWorst.tauX, 3)} unit="N/mm²" />
-                <RVal accent={C.ink2} name="τ permissible (x)" sym="τc,x" val={fmt(R.shearWorst.tauPx, 3)} unit="N/mm²" />
-                <RVal accent={C.ink2} name="τ acting (z)" sym="τz" val={fmt(R.shearWorst.tauZ, 3)} unit="N/mm²" />
-                <RVal accent={R.checks.shearOK ? C.green : C.red} name="Shear check" sym="τ≤τc" val={R.checks.shearOK ? "OK" : "FAIL"} color={R.checks.shearOK ? C.green : C.red} />
-              </Group>
-              <Group title="Punching (two-way) shear" accent={R.checks.punchOK ? C.green : C.red} cols="grid-cols-2 sm:grid-cols-4">
-                <RVal accent={C.amber} name="Punch stress" sym="τv" val={fmt(R.punchWorst.punchS, 3)} unit="N/mm²" />
-                <RVal accent={C.amber} name="Permissible" sym="0.25√fck" val={fmt(R.punchWorst.punchP, 3)} unit="N/mm²" />
-                <RVal accent={C.amber} name="Punch force" sym="Vp" val={fmt(R.punchWorst.punchF, 0)} unit="kN" />
-                <RVal accent={R.checks.punchOK ? C.green : C.red} name="Punching check" sym="τv≤perm" val={R.checks.punchOK ? "OK" : "FAIL"} color={R.checks.punchOK ? C.green : C.red} />
-              </Group>
-              <div className="mt-4">
-                <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
-                {showWork && <div className="mt-2 csin"><FormulaLedger F={F} ready={kReady} /></div>}
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                  <thead><tr>
+                    <th style={{ ...th, textAlign: "left" }}>Footing</th><th style={th}>Lx × Lz (m)</th><th style={th}>D (mm)</th><th style={th}>SBC</th><th style={th}>p max</th>
+                    <th style={th}>Steel x</th><th style={th}>Steel z</th><th style={{ ...th, textAlign: "left" }}>Status</th><th style={th} />
+                  </tr></thead>
+                  <tbody>
+                    {footings.map((f) => { const r = results[f.id], on = selId === f.id, done = !r.incomplete;
+                      return (
+                        <tr key={f.id} onClick={() => { setSelId(f.id); setShowWork(false); }} className="cursor-pointer" style={{ background: on ? C.brassBg : "transparent", boxShadow: on ? `inset 3px 0 0 ${C.brass}` : "none" }}>
+                          <td style={{ ...td, font: `700 13.5px ${UI}`, color: on ? C.brass : C.ink, textAlign: "left" }}>{f.name}</td>
+                          <td style={td}>{v(f.Lx)} × {v(f.Lz)}</td><td style={td}>{v(f.Dprov)}</td><td style={td}>{v(f.SBC)}</td>
+                          <td style={{ ...td, color: done && !r.checks.pressureOK ? C.red : C.ink }}>{done ? fmt(r.maxCorner, 0) : "—"}</td>
+                          <td style={td}>{done ? `Ø${f.dia} @ ${f.spX}` : "—"}</td><td style={td}>{done ? `Ø${f.dia} @ ${f.spZ}` : "—"}</td>
+                          <td style={{ ...td, font: `600 12.5px ${UI}`, color: sColor(r.verdict), textAlign: "left" }}>● {done ? r.verdict.toLowerCase() : "awaiting inputs"}</td>
+                          <td style={{ ...td, width: 32 }}><span onClick={(e) => { e.stopPropagation(); del(f.id); }} title="Remove footing" style={{ color: C.inkDim, fontSize: 16 }}>×</span></td>
+                        </tr>); })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
-          {R?.incomplete && <div className="mt-3 px-4 py-6 rounded text-center" style={{ background: C.surf, border: `1px dashed ${C.line}`, color: C.inkDim, font: `500 14px ${UI}` }}>Enter {R.missing.join(", ")} on the right — results build as you type.</div>}
-        </main>
+          </section>
+        );
+      })()}
 
-        {/* inputs */}
+      <div className={"mx-auto px-4 py-4 grid grid-cols-1 gap-4 items-start " + (sel ? "lg:grid-cols-[400px_minmax(0,1fr)]" : "")} style={{ maxWidth: 1320 }}>
+        {/* LEFT — compact input form for the selected footing */}
         {sel && (
-          <aside className="lg:w-80 shrink-0 space-y-4">
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="FOOTING" accent={C.brass} />
-              <Field text label="Footing mark" value={sel.name} onChange={(v) => upd(sel.id, "name", v)} />
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <Field label="Size Lx" hint="Lx" unit="m" value={sel.Lx} onChange={(v) => upd(sel.id, "Lx", v)} />
-                <Field label="Size Lz" hint="Lz" unit="m" value={sel.Lz} onChange={(v) => upd(sel.id, "Lz", v)} />
-                <Field label="Depth provided" hint="D" unit="mm" value={sel.Dprov} onChange={(v) => upd(sel.id, "Dprov", v)} />
-                <Field label="Safe bearing cap." hint="SBC" unit="kN/m²" value={sel.SBC} onChange={(v) => upd(sel.id, "SBC", v)} />
-              </div>
+          <aside className="cs-card rounded-xl px-4 py-3 lg:sticky lg:top-4" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+            <Field compact text label="Footing mark" value={sel.name} onChange={(v) => upd(sel.id, "name", v)} />
+            <FormSec title="Footing" />
+            <Field compact label="Size" hint="Lx" unit="m" value={sel.Lx} onChange={(v) => upd(sel.id, "Lx", v)} />
+            <Field compact label="Size" hint="Lz" unit="m" value={sel.Lz} onChange={(v) => upd(sel.id, "Lz", v)} />
+            <Field compact label="Depth provided" hint="D" unit="mm" value={sel.Dprov} onChange={(v) => upd(sel.id, "Dprov", v)} />
+            <Field compact label="Safe bearing capacity" hint="SBC" unit="kN/m²" value={sel.SBC} onChange={(v) => upd(sel.id, "SBC", v)} />
+            <FormSec title="Pedestal / column" />
+            <Field compact label="Pedestal size" hint="ax" unit="mm" value={sel.Pedx} onChange={(v) => upd(sel.id, "Pedx", v)} />
+            <Field compact label="Pedestal size" hint="az" unit="mm" value={sel.Pedz} onChange={(v) => upd(sel.id, "Pedz", v)} />
+            <Field compact label="Platform width" unit="mm" value={sel.plat} onChange={(v) => upd(sel.id, "plat", v)} />
+            <FormSec title="Materials & bars" />
+            <Field compact label="Concrete grade" hint="fck" unit="N/mm²" value={sel.fck} onChange={(v) => upd(sel.id, "fck", v)} />
+            <Field compact label="Steel grade" hint="fy" unit="N/mm²" value={sel.fy} onChange={(v) => upd(sel.id, "fy", v)} />
+            <Field compact label="Clear cover" hint="c" unit="mm" value={sel.cover} onChange={(v) => upd(sel.id, "cover", v)} />
+            <Field compact label="Bar diameter" hint="Ø" unit="mm" value={sel.dia} onChange={(v) => upd(sel.id, "dia", v)} />
+            <Field compact label="Spacing provided, x" unit="mm" value={sel.spX} onChange={(v) => upd(sel.id, "spX", v)} />
+            <Field compact label="Spacing provided, z" unit="mm" value={sel.spZ} onChange={(v) => upd(sel.id, "spZ", v)} />
+            <FormSec title="Load combinations" right={<button onClick={() => addCombo(sel.id)} style={{ font: `600 11.5px ${UI}`, color: C.brass }}>+ add combination</button>} />
+            <div className="grid gap-1.5 mt-1.5" style={{ gridTemplateColumns: "1fr 46px 58px 64px 66px 16px" }}>
+              {["Case", "LF", "P (kN)", "Mux", "Muz", ""].map((hh, i) => <span key={i} style={{ font: `600 11px ${UI}`, color: C.inkDim, textAlign: hh === "Case" ? "left" : "right" }}>{hh}</span>)}
+              {sel.combos.map((c) => (
+                <React.Fragment key={c.id}>
+                  <NumCell text w={"100%"} value={c.label} onChange={(v) => updCombo(sel.id, c.id, "label", v)} />
+                  <NumCell w={"100%"} value={c.LF} onChange={(v) => updCombo(sel.id, c.id, "LF", v)} />
+                  <NumCell w={"100%"} value={c.P} onChange={(v) => updCombo(sel.id, c.id, "P", v)} />
+                  <NumCell w={"100%"} value={c.Mux} onChange={(v) => updCombo(sel.id, c.id, "Mux", v)} />
+                  <NumCell w={"100%"} value={c.Muz} onChange={(v) => updCombo(sel.id, c.id, "Muz", v)} />
+                  <button onClick={() => delCombo(sel.id, c.id)} style={{ color: C.inkDim, fontSize: 15, lineHeight: 1 }} title="Remove combination">×</button>
+                </React.Fragment>
+              ))}
             </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="PEDESTAL / COLUMN" accent={C.teal} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Pedestal size x" hint="ax" unit="mm" value={sel.Pedx} onChange={(v) => upd(sel.id, "Pedx", v)} />
-                <Field label="Pedestal size z" hint="az" unit="mm" value={sel.Pedz} onChange={(v) => upd(sel.id, "Pedz", v)} />
-                <Field label="Platform width" hint="—" unit="mm" value={sel.plat} onChange={(v) => upd(sel.id, "plat", v)} />
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="MATERIALS & BARS" accent={C.violet} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Concrete grade" hint="fck" unit="N/mm²" value={sel.fck} onChange={(v) => upd(sel.id, "fck", v)} />
-                <Field label="Steel grade" hint="fy" unit="N/mm²" value={sel.fy} onChange={(v) => upd(sel.id, "fy", v)} />
-                <Field label="Clear cover" hint="c" unit="mm" value={sel.cover} onChange={(v) => upd(sel.id, "cover", v)} />
-                <Field label="Bar diameter" hint="Ø" unit="mm" value={sel.dia} onChange={(v) => upd(sel.id, "dia", v)} />
-                <Field label="Spacing prov. x" unit="mm" value={sel.spX} onChange={(v) => upd(sel.id, "spX", v)} />
-                <Field label="Spacing prov. z" unit="mm" value={sel.spZ} onChange={(v) => upd(sel.id, "spZ", v)} />
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <div className="flex items-center justify-between mb-1">
-                <SecHead label="LOAD COMBINATIONS" accent={C.green} />
-                <button onClick={() => addCombo(sel.id)} className="cs-btn px-2 py-1 rounded-md" style={{ font: `700 11px ${MONO}`, color: C.cyanDeep, border: `1px solid ${C.cyanDeep}55`, background: `${C.cyanDeep}12` }}>+ combo</button>
-              </div>
-              <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 42px 62px 58px 58px 18px" }}>
-                {["Case", "LF", "P kN", "Mux", "Muz", ""].map((hh) => <span key={hh} style={{ font: `600 9px ${MONO}`, color: C.inkDim, letterSpacing: 0.4, textAlign: hh === "Case" ? "left" : "right" }}>{hh}</span>)}
-                {sel.combos.map((c) => (
-                  <React.Fragment key={c.id}>
-                    <NumCell text w={"100%"} value={c.label} onChange={(v) => updCombo(sel.id, c.id, "label", v)} />
-                    <NumCell w={"100%"} value={c.LF} onChange={(v) => updCombo(sel.id, c.id, "LF", v)} />
-                    <NumCell w={"100%"} value={c.P} onChange={(v) => updCombo(sel.id, c.id, "P", v)} />
-                    <NumCell w={"100%"} value={c.Mux} onChange={(v) => updCombo(sel.id, c.id, "Mux", v)} />
-                    <NumCell w={"100%"} value={c.Muz} onChange={(v) => updCombo(sel.id, c.id, "Muz", v)} />
-                    <button onClick={() => delCombo(sel.id, c.id)} style={{ color: C.inkDim, fontSize: 14, lineHeight: 1 }} title="remove">×</button>
-                  </React.Fragment>
-                ))}
-              </div>
-              <div style={{ font: `400 10px ${MONO}`, color: C.inkDim, marginTop: 8, lineHeight: 1.5 }}>P = axial (Puy), Mux/Muz = base moments. Soil pressure is checked per combo; design moment &amp; depth take the envelope. (Pux, Puz, Muy are recorded but do not feed the calc, per the sheet.)</div>
-            </div>
+            <div style={{ font: `400 11px/1.5 ${UI}`, color: C.inkDim, marginTop: 8 }}>P = axial load, Mux / Muz = base moments (kN·m). Soil pressure is checked for every combination; moments and depth use the worst one.</div>
           </aside>
         )}
+
+        {/* RIGHT — plan + answer + checks */}
+        <main className="min-w-0">
+          {sel ? (
+            <>
+              <div className="cs-card rounded-xl px-4 pt-3 pb-1" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                <div className="flex items-start justify-between">
+                  <div><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>Plan · {sel.combos.length} load combination{sel.combos.length === 1 ? "" : "s"}</div></div>
+                  {R && !R.incomplete && <VerdictBadge verdict={R.verdict} size="lg" />}
+                </div>
+                <div style={{ height: 250 }}><FootingPlan f={sel} res={R} /></div>
+              </div>
+
+              {R && !R.incomplete && (() => {
+                const gx = R.govX, gz = R.govZ;
+                const xOK = !gx.overX && R.AstxProv >= gx.Astx, zOK = !gz.overZ && R.AstzProv >= gz.Astz;
+                const sw = R.shearWorst, pw = R.punchWorst;
+                const checks = [
+                  ["Soil pressure (max corner)", fmt(R.maxCorner, 1), `≤ ${fmt(sel.SBC, 0)}`, "kN/m²", R.maxCorner <= sel.SBC],
+                  ["Soil pressure (min corner)", fmt(R.minCorner, 1), "≥ 0", "kN/m²", R.minCorner >= 0],
+                  ["Depth", fmt(sel.Dprov, 0), `≥ ${fmt(R.minDreqd, 0)}`, "mm", R.checks.depthOK],
+                  ["Steel area, x", fmt(R.AstxProv, 0), gx.overX ? "section over-reinforced" : `≥ ${fmt(gx.Astx, 0)}`, "mm²/m", xOK],
+                  ["Steel area, z", fmt(R.AstzProv, 0), gz.overZ ? "section over-reinforced" : `≥ ${fmt(gz.Astz, 0)}`, "mm²/m", zOK],
+                  ["One-way shear, x", fmt(sw.tauX, 3), `≤ ${fmt(sw.tauPx, 3)}`, "N/mm²", sw.tauX <= sw.tauPx],
+                  ["One-way shear, z", fmt(sw.tauZ, 3), `≤ ${fmt(sw.tauPz, 3)}`, "N/mm²", sw.tauZ <= sw.tauPz],
+                  ["Punching shear", fmt(pw.punchS, 3), `≤ ${fmt(pw.punchP, 3)}`, "N/mm²", pw.punchS <= pw.punchP],
+                ];
+                const th = { font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 1, textTransform: "uppercase", padding: "8px 14px", textAlign: "right" };
+                const td = { font: `600 14px ${MONO}`, color: C.ink, padding: "8px 14px", textAlign: "right", borderTop: `1px solid ${C.line}` };
+                return (
+                  <div className="mt-3 space-y-3 csin" key={sel.id}>
+                    {/* 1 — the answer: bottom mesh each way */}
+                    <div className="cs-card rounded-xl grid grid-cols-1 sm:grid-cols-2" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                      {[["Bottom steel, x", sel.spX, R.AstxProv, gx.Astx, gx.spx, gx.overX, xOK], ["Bottom steel, z", sel.spZ, R.AstzProv, gz.Astz, gz.spz, gz.overZ, zOK]].map(([t, sp, prov, req, spReq, over, ok], i) => (
+                        <div key={t} className="px-5 py-4" style={{ borderLeft: i ? `1px solid ${C.line}` : "none" }}>
+                          <div style={{ font: `600 13px ${UI}`, color: C.inkDim }}>{t}</div>
+                          <div style={{ font: `700 30px ${MONO}`, color: ok ? C.ink : C.red, marginTop: 2 }}>Ø{sel.dia} @ {sp}<span style={{ font: `500 14px ${MONO}`, color: C.inkDim }}> mm c/c</span></div>
+                          <div style={{ font: `400 12.5px ${UI}`, color: ok ? C.inkDim : C.red }}>
+                            {over ? "Section over-reinforced — increase depth" : `Provides ${fmt(prov, 0)} mm²/m vs ${fmt(req, 0)} required · max spacing ${fmt(spReq, 0)} mm`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 2 — every check on one table */}
+                    <div className="cs-card rounded-xl overflow-x-auto" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                      <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                        <thead><tr><th style={{ ...th, textAlign: "left" }}>Check</th><th style={th}>Value</th><th style={th}>Limit</th><th style={{ ...th, textAlign: "left" }}>Unit</th><th style={th}>Result</th></tr></thead>
+                        <tbody>
+                          {checks.map(([name, val, lim, unit, ok]) => (
+                            <tr key={name}>
+                              <td style={{ ...td, font: `500 13.5px ${UI}`, color: C.ink2, textAlign: "left" }}>{name}</td>
+                              <td style={{ ...td, color: ok ? C.ink : C.red }}>{val}</td>
+                              <td style={{ ...td, color: C.ink2 }}>{lim}</td>
+                              <td style={{ ...td, font: `500 12px ${MONO}`, color: C.inkDim, textAlign: "left" }}>{unit}</td>
+                              <td style={{ ...td, font: `700 12.5px ${UI}`, color: ok ? C.green : C.red }}>{ok ? "✓ OK" : "✗ FAIL"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* 3 — everything else, on demand */}
+                    <div>
+                      <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
+                      {showWork && (
+                        <div className="mt-2 csin">
+                          <div style={{ font: `400 13px/1.6 ${UI}`, color: C.ink2, marginBottom: 8 }}>
+                            Governing combination: x — {R.govXcombo.label}, z — {R.govZcombo.label} · d<sub>x</sub> / d<sub>z</sub> = {fmt(gx.dx, 0)} / {fmt(gz.dz, 0)} mm ·
+                            p<sub>t,x</sub> = {gx.overX ? "—" : fmt(gx.ptx, 3)}% · p<sub>t,z</sub> = {gz.overZ ? "—" : fmt(gz.ptz, 3)}% · punching force = {fmt(pw.punchF, 0)} kN
+                          </div>
+                          <FormulaLedger F={F} ready={kReady} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+              {R?.incomplete && <div className="mt-3 px-4 py-6 rounded-xl text-center" style={{ background: C.surf, border: `1px dashed ${C.line}`, color: C.inkDim, font: `500 14px ${UI}` }}>Enter {R.missing.join(", ")} on the left — results appear once all inputs are filled.</div>}
+            </>
+          ) : (
+            <div className="cs-card rounded-xl flex flex-col items-center justify-center text-center px-6" style={{ background: C.surf, border: `1px solid ${C.line}`, minHeight: 280 }}>
+              <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start an isolated footing</div>
+              <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 400, marginTop: 6, lineHeight: 1.5 }}>Add a footing, then fill in its size, pedestal, bars and load combinations on the left.</div>
+              <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}` }}>+ Add your first footing</button>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );

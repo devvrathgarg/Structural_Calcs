@@ -218,3 +218,13 @@ export function VerdictBadge({ verdict, label, size = "md" }) {
     </span>
   );
 }
+
+/* small section divider inside the compact form */
+export function FormSec({ title, right }) {
+  return (
+    <div className="flex items-center justify-between" style={{ margin: "12px 0 2px", paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+      <span style={{ font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 1, textTransform: "uppercase" }}>{title}</span>
+      {right}
+    </div>
+  );
+}
