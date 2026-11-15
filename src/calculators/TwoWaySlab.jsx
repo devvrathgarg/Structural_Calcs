@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt, sColor, useSharedStyles, useThemeMode } from "../theme.js";
 import { Field, FormSec, FormulaLedger, TeX, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
+import { printDetails, Ln, Poly, Rect, Tx, Dot, Leader, Dim, ViewTitle, Cut, fitScale, textWidth, L as LAY, STRIP } from "../components/DetailSheet.jsx";
 
 const HX = (s) => parseInt(String(s).replace("#", ""), 16); // "#RRGGBB" -> 0xRRGGBB for three.js
 
@@ -117,6 +118,167 @@ function CondGlyph({ cond, size = 40, active }) {
   return (<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}><rect x={p} y={p} width={s} height={s} fill={active ? `${C.brass}14` : `${C.teal}0d`} />{line(p, p, p + s, p, e.top === "C")}{line(p, p + s, p + s, p + s, e.bottom === "C")}{line(p, p, p, p + s, e.left === "C")}{line(p + s, p, p + s, p + s, e.right === "C")}</svg>);
 }
 
+/* ===== typical slab detail sheet (CivilSpace drafting style, see components/DetailSheet.jsx) =====
+   Conventions from the firm's typical slab detail: ALTHROUGH bottom mesh stated once, not drawn in plan; extra top
+   bars drawn once each, dimensioned from the beam face and called up by mark (n, n1 ...) in a SLAB REINF. MARKED
+   table; sections cut through the beams. Extents are span fractions: 0.3 Lx over continuous edges, 0.1 Lx at
+   discontinuous edges (50 % of mid-span steel), torsion steel over Lx/5 (IS 456 Annex D-1.8, D-1.9). */
+const BW = 230, DB = 450; // indicative beam (as per beam detail)
+function twoWayDetail(p, r, g, sheetNo, nSheets) {
+  const e = EDGES[p.cond], dia = p.dia, cov = g.cover, Lx = p.Lx * 1000, Ly = p.Ly * 1000;
+  const cap = Math.floor(Math.min(3 * r.d, 300) / 25) * 25;
+  const sp = (s) => Math.min(Math.floor(s / 25) * 25, cap);
+  const up50 = (v) => Math.ceil(v / 50) * 50;
+  const ext = { C: up50(0.3 * Lx), D: up50(0.1 * Lx) };
+  const bar = (s) => `${dia}Ø @ ${s} C/C`;
+  const dist = sp((Math.PI * dia * dia / 4) * 1000 / r.minAst);
+
+  // ---- bar marks (one mark per distinct bar) ----
+  const marks = [], markOf = (key, bars, where) => { let m = marks.find((q) => q.key === key); if (!m) { m = { key, mk: (key[0] === "t" ? "t" : "n") + (marks.filter((q) => q.key[0] === key[0]).length || ""), bars, where }; marks.push(m); } return m.mk; };
+  const topMark = (edge) => { const xdir = edge === "left" || edge === "right";
+    if (e[edge] === "C") { const s = xdir ? r.S.xn : r.S.yn; return markOf(`n${s}C`, bar(s), `TOP ${xdir ? "SHORT" : "LONG"}-SPAN BARS OVER CONTINUOUS EDGE, ${ext.C} EACH SIDE OF BEAM`); }
+    const s = sp(2 * (xdir ? r.S.xp : r.S.yp)); return markOf(`n${s}D${xdir}`, bar(s), `TOP ${xdir ? "SHORT" : "LONG"}-SPAN BARS AT DISCONT. EDGE (50% MID-SPAN), ${ext.D} FROM BEAM`); };
+  const tm = {}; ["left", "right", "top", "bottom"].forEach((k) => (tm[k] = topMark(k)));
+  const corner = (a, b) => (e[a] === "D") + (e[b] === "D");
+  const nC = [["top", "left"], ["top", "right"], ["bottom", "left"], ["bottom", "right"]].map(([a, b]) => corner(a, b));
+  const tFull = nC.includes(2) ? markOf("t2", `${bar(sp(r.S.xp / 0.75))} BOTH WAYS, T & B`, `TORSION MESH, CORNER WITH BOTH EDGES DISCONT., ${up50(Lx / 5)} x ${up50(Lx / 5)}`) : null;
+  const tHalf = nC.includes(1) ? markOf("t1", `${bar(sp(r.S.xp / 0.375))} BOTH WAYS, T & B`, `TORSION MESH, CORNER WITH ONE EDGE DISCONT., ${up50(Lx / 5)} x ${up50(Lx / 5)}`) : null;
+
+  // ---- PLAN ----
+  const cont = 600, Wm = Lx + 2 * BW + 2 * cont, Hm = Ly + 2 * BW + 2 * cont;
+  const sc = fitScale(Wm, Hm, 270, 400, [20, 25, 30, 40, 50, 75, 100]);
+  const ox = 40 + (290 - Wm / sc) / 2 + (BW + cont) / sc, oy = 40 + (430 - Hm / sc) / 2 + (BW + cont) / sc;
+  const P = (x, y) => [ox + x / sc, oy + y / sc];
+  const plan = [];
+  // beams (dashed: under the slab) and columns (solid grey)
+  for (const y of [-BW, 0, Ly, Ly + BW]) plan.push(<Ln key={"bh" + y} a={P(-BW, y)} b={P(Lx + BW, y)} k="HID" />);
+  for (const x of [-BW, 0, Lx, Lx + BW]) plan.push(<Ln key={"bv" + x} a={P(x, -BW)} b={P(x, Ly + BW)} k="HID" />);
+  for (const [x, y] of [[-BW, -BW], [Lx, -BW], [-BW, Ly], [Lx, Ly]]) { const [a, b] = P(x, y); plan.push(<Rect key={"c" + x + y} x={a} y={b} w={BW / sc} h={BW / sc} fill="#808080" />); }
+  // slab edges: discontinuous = slab stops at the beam's outer face; continuous = slab carries on (break line)
+  const brk = (a, b) => { const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, hor = a[1] === b[1], z = 1.6;
+    return <Poly p={hor ? [a, [mx - z, my], [mx - z / 2, my - z * 1.5], [mx + z / 2, my + z * 1.5], [mx + z, my], b] : [a, [mx, my - z], [mx + z * 1.5, my - z / 2], [mx - z * 1.5, my + z / 2], [mx, my + z], b]} k="EDGE" />; };
+  const out = (k) => (e[k] === "C" ? BW + cont : BW);   // slab's outer extent beyond each panel edge
+  const X0 = -out("left"), X1 = Lx + out("right"), Y0 = -out("top"), Y1 = Ly + out("bottom");
+  const edgeLine = { top: [[X0, Y0], [X1, Y0]], bottom: [[X0, Y1], [X1, Y1]], left: [[X0, Y0], [X0, Y1]], right: [[X1, Y0], [X1, Y1]] };
+  for (const k of ["top", "bottom", "left", "right"]) { const [a, b] = edgeLine[k];
+    plan.push(e[k] === "D" ? <Ln key={"e" + k} a={P(...a)} b={P(...b)} k="CONC" /> : <g key={"e" + k}>{brk(P(...a), P(...b))}</g>); }
+  // extra top bars, one of each, dimensioned from the beam face
+  const tick = 1.6;
+  const tb = { left: [0.3, "x", 0, 1], right: [0.7, "x", Lx, -1], top: [0.7, "y", 0, 1], bottom: [0.3, "y", Ly, -1] };
+  for (const [k, [f, ax, face, dir]] of Object.entries(tb)) {
+    const C_ = e[k] === "C", Lb = ext[e[k]], outer = face - dir * (C_ ? BW + Lb : BW - cov), inner = face + dir * Lb;
+    const at = (u) => (ax === "x" ? P(u, f * Ly) : P(f * Lx, u));
+    const A = at(outer), B = at(inner);
+    plan.push(<g key={"t" + k}>
+      <Ln a={A} b={B} k="BAR" />
+      {!C_ && (ax === "x" ? <Ln a={A} b={[A[0], A[1] + tick]} k="BAR" /> : <Ln a={A} b={[A[0] + tick, A[1]]} k="BAR" />)}
+      {ax === "x" ? <Dim p1={at(face)} p2={B} off={-3} text={`${Lb}`} /> : <Dim p1={at(face)} p2={B} off={-3} text={`${Lb}`} vertical />}
+      {C_ && (ax === "x" ? <Dim p1={at(face - dir * BW)} p2={A} off={-3} text={`${Lb}`} /> : <Dim p1={at(face - dir * BW)} p2={A} off={-3} text={`${Lb}`} vertical />)}
+      <Leader to={at(face + dir * Lb * 0.55)} at={ax === "x" ? [at(face + dir * Lb * 0.55)[0] + 4 * dir, at(0)[1] + 9] : [at(0)[0] + 7, at(face + dir * Lb * 0.55)[1] + 8 * dir]} text={tm[k]} a={dir > 0 ? "start" : "end"} />
+    </g>);
+  }
+  // torsion zones at corners
+  const tz = up50(Lx / 5) / sc;
+  [["top", "left", 0, 0, 1, 1], ["top", "right", Lx, 0, -1, 1], ["bottom", "left", 0, Ly, 1, -1], ["bottom", "right", Lx, Ly, -1, -1]].forEach(([a, b, x, y, sx, sy], i) => {
+    const n = nC[i]; if (!n) return; const [px, py] = P(x, y), x0 = sx > 0 ? px : px - tz, y0 = sy > 0 ? py : py - tz;
+    plan.push(<g key={"tz" + i}><Rect x={x0} y={y0} w={tz} h={tz} k="EDGE" /><Ln a={[x0, y0]} b={[x0 + tz, y0 + tz]} k="HATCH" /><Ln a={[x0 + tz, y0]} b={[x0, y0 + tz]} k="HATCH" />
+      <Tx x={x0 + tz / 2} y={y0 + tz / 2 - 1} a="middle">{n === 2 ? tFull : tHalf}</Tx></g>);
+  });
+  // spans, cut lines A-A (short span) and B-B (long span)
+  plan.push(<Dim key="dx" p1={P(0, Y1)} p2={P(Lx, Y1)} off={12} text={`${Lx}`} />);
+  plan.push(<Dim key="dy" p1={P(X1, 0)} p2={P(X1, Ly)} off={12} text={`${Ly}`} vertical />);
+  const ya = P(0, 0.5 * Ly)[1], xb = P(0.5 * Lx, 0)[0];
+  plan.push(<g key="cuts"><Cut c={[P(X0, 0)[0] - 4, ya]} dir="up" letter="A" /><Cut c={[P(X1, 0)[0] + 4, ya]} dir="up" letter="A" />
+    <Cut c={[xb, P(0, Y0)[1] - 4]} dir="left" letter="B" /><Cut c={[xb, P(0, Y1)[1] + 4]} dir="left" letter="B" /></g>);
+  const [pcx] = P(Lx / 2, 0), pBot = P(0, Y1)[1] + 6;
+  plan.push(<ViewTitle key="vt" x={pcx} y={pBot + 22} title={`TYPICAL SLAB REINFORCEMENT PLAN - ${String(p.name).toUpperCase()}`} scale={sc} />);
+  const alth = `ALTHROUGH REINF. ${bar(r.S.xp)} (SHORT SPAN) & ${bar(r.S.yp)} (LONG SPAN) AT BOTTOM, NOT SHOWN IN PLAN FOR CLARITY, EXCEPT SHOWN.`;
+  const altW = Math.min(300, textWidth(alth) + 8), altLines = altW < textWidth(alth) + 8 ? [alth.slice(0, alth.indexOf(" AT BOTTOM") + 10), alth.slice(alth.indexOf(" AT BOTTOM") + 11)] : [alth];
+  plan.push(<g key="alth"><Rect x={pcx - altW / 2} y={pBot + 34} w={altW} h={4 + altLines.length * 5} k="TITLE" />{altLines.map((t, i) => <Tx key={i} x={pcx} y={pBot + 39.5 + i * 5} a="middle">{t}</Tx>)}</g>);
+
+  // ---- SECTIONS ----
+  function section({ x0, y0, span, eL, eR, mL, mR, mainS, crossS, mainOuter, title }) {
+    const contL = eL === "C" ? 800 : 0, contR = eR === "C" ? 800 : 0;
+    const Wsm = span + 2 * BW + contL + contR, s = fitScale(Wsm, DB + 400, 280, 60, [10, 15, 20, 25, 30, 40, 50]);
+    const left = x0 + (290 - Wsm / s) / 2 + (BW + contL) / s, Q = (u, v) => [left + u / s, y0 + v / s];
+    const D = p.D, out = [];
+    const uL = -BW - contL, uR = span + BW + contR;
+    // concrete: slab top, slab soffit between beams, beams; break lines at continuous ends; beam outer face at discontinuous ends
+    out.push(<Ln key="top" a={Q(uL, 0)} b={Q(uR, 0)} />);
+    const soffit = [[uL, -BW], [0, span], [span + BW, uR]];
+    soffit.forEach(([a, b], i) => b > a && out.push(<Ln key={"sf" + i} a={Q(a, D)} b={Q(b, D)} />));
+    [[-BW, 0], [span, span + BW]].forEach(([a, b], i) => out.push(<Poly key={"bm" + i} p={[Q(a, D), Q(a, DB), Q(b, DB), Q(b, D)]} />));
+    if (eL === "D") out.push(<Ln key="dl" a={Q(-BW, 0)} b={Q(-BW, D)} />); else out.push(<g key="bl">{brk(Q(uL, -40), Q(uL, D + 40))}</g>);
+    if (eR === "D") out.push(<Ln key="dr" a={Q(span + BW, 0)} b={Q(span + BW, D)} />); else out.push(<g key="br">{brk(Q(uR, -40), Q(uR, D + 40))}</g>);
+    // beam links and corner bars (indicative)
+    [[-BW, 0], [span, span + BW]].forEach(([a, b], i) => { out.push(<Rect key={"lk" + i} x={Q(a + 25, 0)[0]} y={Q(0, 25)[1]} w={(BW - 50) / s} h={(DB - 50) / s} k="LINK" />);
+      [[a + 45, 45], [b - 45, 45], [a + 45, DB - 45], [b - 45, DB - 45]].forEach(([u, v], j) => out.push(<Dot key={"bb" + i + j} c={Q(u, v)} />)); });
+    out.push(<Leader key="bml" to={Q(span + BW / 2, DB)} at={[Q(span + BW / 2, 0)[0] - 6, Q(0, DB)[1] + 7]} text="BEAM AS PER BEAM DETAIL" a="end" />);
+    // bottom althrough bars: main direction as a line (outer or inner layer), the other direction as dots
+    const vMain = D - cov - dia / 2 - (mainOuter ? 0 : dia), vCross = D - cov - dia / 2 - (mainOuter ? dia : 0);
+    const bL = eL === "C" ? uL : -BW + cov, bR = eR === "C" ? uR : span + BW - cov;
+    out.push(<Ln key="bot" a={Q(bL, vMain)} b={Q(bR, vMain)} k="BAR" />);
+    const step = Math.max(crossS, 3 * s);
+    const dots = []; for (let u = bL + step / 2; u < bR; u += step) if (!(u > -BW && u < 0) && !(u > span && u < span + BW)) dots.push(u);
+    dots.forEach((u, i) => out.push(<Dot key={"d" + i} c={Q(u, vCross)} />));
+    out.push(<Leader key="bl1" to={Q(span * 0.3, vMain)} at={[Q(span * 0.3, 0)[0] - 10, Q(0, DB)[1] + 7]} text={`${bar(mainS)} BOTTOM`} a="end" />);
+    const dc = dots.find((u) => u > span * 0.55) ?? dots[0];
+    if (dc != null) out.push(<Leader key="bl2" to={Q(dc, vCross)} at={[Q(dc, 0)[0] + 3, Q(0, DB)[1] + 13]} text={`${bar(crossS)} BOTTOM`} />);
+    // extra top bars at each support + distribution dots under them
+    const vt = cov + dia / 2;
+    [[eL, mL, 0, -1], [eR, mR, span, 1]].forEach(([ed, mk, face, side], i) => {
+      const Lb = ext[ed], inner = face - side * Lb, C_ = ed === "C";
+      const outerU = C_ ? face + side * (BW + Lb) : face + side * (BW - cov);
+      out.push(<Poly key={"tp" + i} p={C_ ? [Q(outerU, vt), Q(inner, vt)] : [Q(outerU, D - cov), Q(outerU, vt), Q(inner, vt)]} k="BAR" />);
+      const ua = Math.min(inner, C_ ? outerU : face), ub = Math.max(inner, C_ ? outerU : face), stp = Math.max(dist, 3 * s);
+      for (let u = ua + stp / 2; u < ub; u += stp)
+        if (!(u > -BW && u < 0) && !(u > span && u < span + BW)) out.push(<Dot key={"td" + i + u} c={Q(u, vt + dia)} />);
+      out.push(<Dim key={"dm" + i} p1={Q(side < 0 ? face : inner, 0)} p2={Q(side < 0 ? inner : face, 0)} off={-4} text={`${Lb}`} />);
+      if (C_) out.push(<Dim key={"dmc" + i} p1={Q(side < 0 ? outerU : face + BW, 0)} p2={Q(side < 0 ? face - BW : outerU, 0)} off={-4} text={`${Lb}`} />);
+      const lu = face - side * Lb * 0.45;
+      out.push(<Leader key={"tl" + i} to={Q(lu, vt)} at={[Q(lu, 0)[0] - side * 4, Q(0, 0)[1] - 11]} text={mk} a={side < 0 ? "start" : "end"} />);
+    });
+    out.push(<Dim key="th" p1={Q(uL, 0)} p2={Q(uL, D)} off={-5} text={`${D}`} vertical />);
+    out.push(<Dim key="sp" p1={Q(0, DB)} p2={Q(span, DB)} off={22} text={`${span}`} />);
+    out.push(<ViewTitle key="vt" x={Q(span / 2, 0)[0]} y={Q(0, DB)[1] + 38} title={title} scale={s} />);
+    return out;
+  }
+  const secA = section({ x0: 345, y0: 70, span: Lx, eL: e.left, eR: e.right, mL: tm.left, mR: tm.right, mainS: r.S.xp, crossS: r.S.yp, mainOuter: true, title: "SECTION A-A" });
+  const secB = section({ x0: 345, y0: 205, span: Ly, eL: e.top, eR: e.bottom, mL: tm.top, mR: tm.bottom, mainS: r.S.yp, crossS: r.S.xp, mainOuter: false, title: "SECTION B-B" });
+
+  // ---- SLAB REINF. MARKED ----
+  const rows = [["MARK", "BARS", "LOCATION"], ...marks.map((m) => [m.mk, m.bars, m.where]), ["DIST.", bar(dist), "UNDER TOP BARS (MIN. STEEL)"]];
+  const tx = 350, ty = 360, cw = [16, 92, 172], rh = 7;
+  const table = <g key="tbl">
+    <Tx x={tx} y={ty - 4} h={3.5}>SLAB REINF. MARKED</Tx>
+    <Rect x={tx} y={ty} w={cw[0] + cw[1] + cw[2]} h={rows.length * rh} k="TITLE" />
+    {rows.map((rw, i) => <g key={i}>{i > 0 && <Ln a={[tx, ty + i * rh]} b={[tx + cw[0] + cw[1] + cw[2], ty + i * rh]} k="EDGE" />}
+      {rw.map((c, j) => <Tx key={j} x={tx + 2 + cw.slice(0, j).reduce((a, b) => a + b, 0)} y={ty + i * rh + 4.8}>{c}</Tx>)}</g>)}
+    {[cw[0], cw[0] + cw[1]].map((x, i) => <Ln key={"v" + i} a={[tx + x, ty]} b={[tx + x, ty + rows.length * rh]} k="EDGE" />)}
+  </g>;
+
+  const notes = [
+    "ALL DIMENSIONS IN mm UNLESS NOTED. DO NOT SCALE THE DRAWING.",
+    `CONCRETE M${g.fck}, REINFORCEMENT Fe${g.fy} TO IS 1786. SLAB ${p.D} THK. CLEAR COVER ${g.cover}.`,
+    `${alth}`,
+    "BOTTOM BARS OF THE SHORT SPAN IN THE OUTER LAYER, LONG SPAN ABOVE THEM. ALL BOTTOM BARS CARRIED INTO THE SUPPORTS; NOT CURTAILED.",
+    `TOP BARS OVER CONTINUOUS EDGES EXTEND 0.3 Lx = ${ext.C} FROM THE BEAM FACE ON EACH SIDE.`,
+    `AT DISCONTINUOUS EDGES TOP BARS = 50% OF MID-SPAN STEEL, EXTEND 0.1 Lx = ${ext.D} FROM THE BEAM FACE, BENT DOWN INTO THE BEAM (IS 456 ANNEX D).`,
+    `TORSION STEEL AT CORNERS OVER Lx/5 = ${up50(Lx / 5)} EACH WAY, TOP AND BOTTOM: 3/4 OF SHORT-SPAN MID-SPAN STEEL WHERE BOTH EDGES ARE DISCONTINUOUS, HALF OF THAT WHERE ONE IS (IS 456 ANNEX D-1.8, D-1.9).`,
+    `DISTRIBUTION BARS ${bar(dist)} UNDER ALL TOP BARS. MAX. BAR SPACING ${cap} (IS 456 CL 26.3.3).`,
+    "LAPS AND ANCHORAGE AS PER IS 456 CL 26.2. NO LAPS OF MAIN BARS IN HIGH-MOMENT ZONES; NOT MORE THAN 50% LAPPED AT ONE SECTION.",
+    "BEAMS ARE INDICATIVE: AS PER BEAM DETAIL. DRAWINGS TO BE READ WITH ARCHITECTURAL DRAWINGS; VERIFY DIMENSIONS AT SITE.",
+    "OPENINGS LARGER THAN SHOWN NOT TO BE MADE WITHOUT STRUCTURAL REVIEW.",
+  ];
+  return {
+    title: `TYPICAL SLAB DETAIL - ${String(p.name).toUpperCase()} (CASE ${p.cond})`,
+    drgNo: `CS-SL-${String(sheetNo).padStart(2, "0")}`,
+    scales: [...new Set([sc, ...[secA, secB].map((s) => s.find((q) => q.key === "vt").props.scale)])].map((v) => `1:${v}`).join(", "),
+    notes,
+    body: <g>{plan}{secA}{secB}{table}</g>,
+  };
+}
+
 /* ===== formulas (LaTeX) — mirrors the sheet's method ===== */
 function buildFormulas(p, res, g) {
   if (res.incomplete) return [];
@@ -207,6 +369,8 @@ export default function CivilSpaceCalc({ onBack }) {
     XLSX.writeFile(wb, "civilspace_slab_design.xlsx");
   };
 
+  const detailable = panels.filter((p) => { const r = results[p.id]; return !r.incomplete && !Number.isNaN(r.Ast.xp); });
+  const downloadDetails = () => printDetails({ project, sheets: detailable.map((p, i) => twoWayDetail(p, results[p.id], g, i + 1, detailable.length)) });
   const F = sel && R ? buildFormulas(sel, R, g) : [];
   const btn = (x) => ({ font: `600 12px ${UI}`, ...x });
   const KEYS = [["xp", "Bottom · short span", "Mx+"], ["yp", "Bottom · long span", "My+"], ["xn", "Top · short span (support)", "Mx−"], ["yn", "Top · long span (support)", "My−"]];
@@ -232,6 +396,7 @@ export default function CivilSpaceCalc({ onBack }) {
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="two-way-slab" inline />
             <button onClick={exportXlsx} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ border: `1px solid ${panels.length ? C.brass : C.line}`, color: panels.length ? C.brass : C.inkDim, background: C.surf })}>Export Excel</button>
+            <button onClick={downloadDetails} disabled={!detailable.length} title={detailable.length ? "Opens a print-ready sheet per panel — choose Save as PDF" : "Complete a panel first"} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ border: `1px solid ${detailable.length ? C.brass : C.line}`, color: detailable.length ? C.brass : C.inkDim, background: C.surf })}>Typical details (PDF)</button>
             <button onClick={() => setShowReport(true)} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ background: panels.length ? C.green : C.line, color: "#fff" })}>Generate report</button>
             <ThemeToggle />
           </div>
