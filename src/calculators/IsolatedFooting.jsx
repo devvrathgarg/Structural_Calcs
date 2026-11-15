@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt, sColor } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
+import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg, useNumText } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -67,6 +67,8 @@ function computeCombo(c) {
 
 /* whole footing: run every combo + envelope the design & pass/fail checks */
 function computeFooting(f) {
+  const nb = countBlank(f, ["Lx", "Lz", "Dprov", "SBC", "Pedx", "Pedz", "plat", "fck", "fy", "cover", "dia", "spX", "spZ"]) + f.combos.reduce((n, c) => n + countBlank(c, ["LF", "P", "Mux", "Muz"]), 0);
+  if (nb) return { incomplete: true, missing: blankMsg(nb) };
   const missing = [];
   if (!(f.Lx > 0)) missing.push("Lx");
   if (!(f.Lz > 0)) missing.push("Lz");
@@ -167,20 +169,19 @@ function FootingPlan({ f, res }) {
 
 /* compact numeric cell for the load-combination table */
 function NumCell({ value, onChange, text, w = 64 }) {
-  const [t, setT] = useState(value != null && value !== "" ? String(value) : "");
-  React.useEffect(() => { if (text) { if (String(value) !== t) setT(value ?? ""); } else { const n = parseFloat(t); if (!((n === value) || (t === "" && !value))) setT(value ? String(value) : ""); } }, [value]);
-  const h = (e) => { const raw = e.target.value; if (text) { setT(raw); onChange(raw); return; } if (/^-?[0-9]*\.?[0-9]*$/.test(raw)) { setT(raw); const n = parseFloat(raw); onChange(isNaN(n) ? 0 : n); } };
-  return <input value={t} onChange={h} inputMode={text ? "text" : "decimal"} className="cs-field cs-in outline-none rounded-md px-2 py-1.5" style={{ width: w, font: `600 13px ${text ? UI : MONO}`, color: C.ink, background: C.surf, border: `1px solid ${C.line}`, textAlign: text ? "left" : "right" }} />;
+  const [t, h] = useNumText(value, onChange, text, /^-?[0-9]*\.?[0-9]*$/);
+  const empty = !text && value == null;
+  return <input value={t} onChange={h} inputMode={text ? "text" : "decimal"} placeholder={text ? "" : "—"} className="cs-field cs-in outline-none rounded-md px-2 py-1.5" style={{ width: w, font: `600 13px ${text ? UI : MONO}`, color: C.ink, background: C.surf, border: empty ? `1px dashed ${C.amber}` : `1px solid ${C.line}`, textAlign: text ? "left" : "right" }} />;
 }
 
-const DEF_COMBO = () => ({ label: "DL+LL", LF: 1, P: 0, Pux: 0, Puz: 0, Mux: 0, Muy: 0, Muz: 0 });
+const DEF_COMBO = () => ({ label: "DL+LL", LF: 1, P: null, Pux: null, Puz: null, Mux: null, Muy: null, Muz: null });
 const DEF_FOOTING = {
-  Lx: 1.8, Lz: 2, Dprov: 300, SBC: 134, fdnDepth: 0,
-  Pedx: 300, Pedz: 600, plat: 0,
-  fck: 25, fy: 500, cover: 50, dia: 10, spX: 150, spZ: 150,
+  Lx: null, Lz: null, Dprov: null, SBC: null, fdnDepth: null,
+  Pedx: null, Pedz: null, plat: null,
+  fck: 25, fy: 500, cover: 50, dia: null, spX: null, spZ: null,
   combos: [
-    { label: "DL+LL", LF: 1, P: 420, Pux: 1.362, Puz: 0.829, Mux: 0.879, Muy: 0.042, Muz: 1.355 },
-    { label: "DL+LL·1.5", LF: 1.5, P: 630, Pux: -9.29, Puz: 0.44, Mux: 0.221, Muy: 0, Muz: -5.537 },
+    { ...DEF_COMBO() },
+    { ...DEF_COMBO(), label: "DL+LL·1.5", LF: 1.5 },
   ],
 };
 
@@ -235,11 +236,11 @@ export default function IsolatedFooting({ onBack }) {
             </button>
           )}
           <div>
-            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Isolated Footing <span style={{ color: C.cyan, fontStyle: "italic" }}>Design</span></div>
-            <div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>BIAXIAL · IS 456:2000</div>
+            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Isolated Footing Design</div>
+            <div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>BIAXIAL · IS 456:2000</div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
-            <span style={{ font: `600 10px ${MONO}`, color: C.inkDim }}>PROJECT</span>
+            <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span>
             <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 150, background: "transparent" }} />
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -253,7 +254,7 @@ export default function IsolatedFooting({ onBack }) {
       <div className="mx-auto px-4 py-4 flex flex-col lg:flex-row gap-4" style={{ maxWidth: 1480 }}>
         {/* footing list */}
         <aside className="lg:w-52 shrink-0">
-          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>FOOTINGS</span>{footings.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} safe</span>}</div>
+          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 12px ${UI}`, color: C.inkDim }}>Footings</span>{footings.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} safe</span>}</div>
           <div className="space-y-1.5">
             {footings.map((f) => { const r = results[f.id], on = selId === f.id; return (
               <div key={f.id} onClick={() => { setSelId(f.id); setShowWork(false); }} className={"cs-panel px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2 " + (on ? "cs-card" : "")} style={{ background: C.surf, border: `1px solid ${on ? C.brass : C.line}`, borderLeft: `3px solid ${on ? C.brass : sColor(r.verdict)}` }}>
@@ -271,7 +272,7 @@ export default function IsolatedFooting({ onBack }) {
             {sel ? (
               <div className="p-4">
                 <div className="flex items-start justify-between">
-                  <div><div style={{ font: `400 22px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{sel.combos.length} load combination{sel.combos.length === 1 ? "" : "s"} · plan</div></div>
+                  <div><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{sel.combos.length} load combination{sel.combos.length === 1 ? "" : "s"} · plan</div></div>
                   {R && !R.incomplete && <VerdictBadge verdict={R.verdict} size="lg" />}
                 </div>
                 <div style={{ height: 300, marginTop: 4 }}><FootingPlan f={sel} res={R} /></div>

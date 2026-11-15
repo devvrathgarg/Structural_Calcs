@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt, sColor } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
+import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -35,6 +35,8 @@ function computeCantilever(p, g) {
   const { S1, S2, thk1, thk2, fck, fy, M, mainDia, tenDia, tenSp, compDia, compSp } = p;
   const { minPct, cover, ratioCant, ratioThk } = g;
 
+  const nb = countBlank(p, ["S1", "S2", "thk1", "thk2", "fck", "fy", "M", "mainDia", "tenDia", "tenSp", "compDia", "compSp"]) + countBlank(g, ["minPct", "cover", "ratioCant", "ratioThk"]);
+  if (nb) return { incomplete: true, missing: blankMsg(nb) };
   const missing = [];
   if (!(S1 + S2 > 0)) missing.push("span");
   if (!(thk1 + thk2 > 0)) missing.push("thickness");
@@ -130,7 +132,7 @@ function buildFormulas(p, r, g) {
   return F;
 }
 
-const DEF = { type: "cant", S1: 1.5, S2: 1.2, thk1: 325, thk2: 225, fck: 40, fy: 500, M: 0, mainDia: 10, tenDia: 12, tenSp: 100, compDia: 10, compSp: 100, finishes: 100, floorSunk: 0, railH: 0, railTh: 0, live: 5, extraM: 0 };
+const DEF = { type: "cant", S1: null, S2: null, thk1: null, thk2: null, fck: 40, fy: 500, M: null, mainDia: null, tenDia: null, tenSp: null, compDia: null, compSp: null, finishes: 100, floorSunk: 0, railH: 0, railTh: 0, live: 5, extraM: 0 };
 
 export default function CantileverSlab({ onBack }) {
   const [g, setG] = useState({ minPct: 0.2, cover: 25, ratioCant: 7, ratioThk: 12 });
@@ -177,11 +179,11 @@ export default function CantileverSlab({ onBack }) {
             </button>
           )}
           <div>
-            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Cantilever Balcony <span style={{ color: C.cyan, fontStyle: "italic" }}>Design</span></div>
-            <div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>IS 456:2000 · L/d = 7</div>
+            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>Cantilever Balcony Design</div>
+            <div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>IS 456:2000 · L/d = 7</div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
-            <span style={{ font: `600 10px ${MONO}`, color: C.inkDim }}>PROJECT</span>
+            <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span>
             <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 150, background: "transparent" }} />
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -194,7 +196,7 @@ export default function CantileverSlab({ onBack }) {
 
       <div className="mx-auto px-4 py-4 flex flex-col lg:flex-row gap-4" style={{ maxWidth: 1480 }}>
         <aside className="lg:w-52 shrink-0">
-          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>BALCONIES</span>{cases.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} safe</span>}</div>
+          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 12px ${UI}`, color: C.inkDim }}>Balconies</span>{cases.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} safe</span>}</div>
           <div className="space-y-1.5">
             {cases.map((p) => { const r = results[p.id], on = selId === p.id; return (
               <div key={p.id} onClick={() => { setSelId(p.id); setShowWork(false); }} className={"cs-panel px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2 " + (on ? "cs-card" : "")} style={{ background: C.surf, border: `1px solid ${on ? C.brass : C.line}`, borderLeft: `3px solid ${on ? C.brass : sColor(r.verdict)}` }}>
@@ -211,7 +213,7 @@ export default function CantileverSlab({ onBack }) {
             {sel ? (
               <div className="p-4">
                 <div className="flex items-start justify-between">
-                  <div><div style={{ font: `400 22px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>Cantilever balcony</div></div>
+                  <div><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>Cantilever balcony</div></div>
                   {R && !R.incomplete && <VerdictBadge verdict={R.verdict} size="lg" />}
                 </div>
                 <div style={{ height: 205, marginTop: 4 }}><CantileverView p={sel} /></div>

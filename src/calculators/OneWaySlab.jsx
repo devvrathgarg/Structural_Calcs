@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
+import { Field, FormulaLedger, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 /* =====================================================================
@@ -31,6 +31,8 @@ function computeOneWay(p, g) {
   const { type, B, D: Th, fck, E, live, fire, dia } = p;
   const { fy, gammaC, gammaFill, addDL, lfDL, lfLL, cover, minPct } = g;
 
+  const nb = countBlank(p, ["B", "D", "fck", "E", "live", "fire", "dia"]) + countBlank(g, ["fy", "gammaC", "gammaFill", "addDL", "lfDL", "lfLL", "cover", "minPct"]);
+  if (nb) return { incomplete: true, missing: blankMsg(nb) };
   const missing = [];
   if (!(B > 0)) missing.push("span");
   if (!(Th > 0)) missing.push("thickness");
@@ -139,7 +141,7 @@ function buildFormulas(p, r, g) {
   return F;
 }
 
-const DEF_PANEL = { type: "edge", B: 0, D: 150, fck: 25, E: 100, live: 5, fire: 0, dia: 8 };
+const DEF_PANEL = { type: "edge", B: null, D: null, fck: 25, E: null, live: null, fire: null, dia: null };
 
 export default function OneWaySlab({ onBack }) {
   const [g, setG] = useState({ fy: 550, gammaC: 25, gammaFill: 20, addDL: 0.132, lfDL: 1.5, lfLL: 1.5, cover: 25, minPct: 0.12 });
@@ -179,7 +181,7 @@ export default function OneWaySlab({ onBack }) {
   return (
     <div className="min-h-screen cs-bp" style={{ color: C.ink, fontFamily: UI }}>
       {/* header */}
-      <header className="px-4 pt-4 mx-auto" style={{ maxWidth: 1480 }}>
+      <header className="px-4 pt-4 mx-auto" style={{ maxWidth: 1320 }}>
         <div className="cs-card flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
           {onBack && (
             <button onClick={onBack} className="cs-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.surf, color: C.ink2, font: `600 13px ${UI}` }}>
@@ -188,11 +190,11 @@ export default function OneWaySlab({ onBack }) {
             </button>
           )}
           <div>
-            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>One-way Slab <span style={{ color: C.cyan, fontStyle: "italic" }}>Design</span></div>
-            <div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>REYNOLDS Ch.33 · IS 456:2000</div>
+            <div style={{ font: `400 21px ${SERIF}`, letterSpacing: "-0.01em", color: C.ink }}>One-way Slab Design</div>
+            <div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>REYNOLDS Ch.33 · IS 456:2000</div>
           </div>
           <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}>
-            <span style={{ font: `600 10px ${MONO}`, color: C.inkDim }}>PROJECT</span>
+            <span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span>
             <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 150, background: "transparent" }} />
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -203,130 +205,178 @@ export default function OneWaySlab({ onBack }) {
         </div>
       </header>
 
-      <div className="mx-auto px-4 py-4 flex flex-col lg:flex-row gap-4" style={{ maxWidth: 1480 }}>
-        {/* panel list */}
-        <aside className="lg:w-52 shrink-0">
-          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>PANELS</span>{panels.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{doneN}/{panels.length} done</span>}</div>
-          <div className="space-y-1.5">
-            {panels.map((p) => { const r = results[p.id], on = selId === p.id; return (
-              <div key={p.id} onClick={() => { setSelId(p.id); setShowWork(false); }} className={"cs-panel px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2 " + (on ? "cs-card" : "")} style={{ background: C.surf, border: `1px solid ${on ? C.brass : C.line}`, borderLeft: `3px solid ${on ? C.brass : r.incomplete ? C.inkDim : r.inadequate ? C.red : C.teal}` }}>
-                <div className="grow min-w-0"><div style={{ font: `700 14px ${UI}`, color: on ? C.brass : C.ink }}>{p.name}</div><div className="truncate" style={{ font: `400 10px ${MONO}`, color: C.inkDim }}>{r.incomplete ? "awaiting inputs" : COEF[p.type].label}</div></div>
-                <span onClick={(e) => { e.stopPropagation(); del(p.id); }} style={{ color: C.inkDim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</span>
-              </div>); })}
-          </div>
-          <button onClick={add} className="cs-btn w-full mt-2 px-3 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}`, boxShadow: `0 2px 10px ${C.cyanDeep}33` }}>+ Add panel</button>
+      {/* PANEL SCHEDULE — every panel at a glance; click a row to edit it below */}
+      {panels.length > 0 && (() => {
+        const th = { font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 0.8, textTransform: "uppercase", padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" };
+        const td = { font: `600 13.5px ${MONO}`, color: C.ink, padding: "7px 12px", textAlign: "right", borderTop: `1px solid ${C.line}`, whiteSpace: "nowrap" };
+        const v = (x) => (x == null ? "—" : x);
+        return (
+          <section className="mx-auto px-4 pt-4" style={{ maxWidth: 1320 }}>
+            <div className="cs-card rounded-xl overflow-hidden" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <span style={{ font: `700 13px ${UI}`, color: C.ink }}>Panel schedule</span>
+                <span style={{ font: `500 12px ${MONO}`, color: C.inkDim }}>{doneN}/{panels.length} designed</span>
+                <button onClick={add} className="cs-btn ml-auto px-3 py-1.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 13px ${UI}` }}>+ Add panel</button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                  <thead><tr>
+                    <th style={{ ...th, textAlign: "left" }}>Panel</th><th style={{ ...th, textAlign: "left" }}>Type</th>
+                    <th style={th}>L (m)</th><th style={th}>D (mm)</th><th style={th}>fck</th><th style={th}>LL (kN/m²)</th>
+                    <th style={th}>Top steel</th><th style={th}>Bottom steel</th><th style={{ ...th, textAlign: "left" }}>Status</th><th style={th} />
+                  </tr></thead>
+                  <tbody>
+                    {panels.map((p) => { const r = results[p.id], on = selId === p.id;
+                      const st = r.incomplete ? ["awaiting inputs", C.inkDim] : r.inadequate ? ["inadequate", C.red] : ["designed", C.green];
+                      const bar = (s) => (r.incomplete || r.inadequate || s == null ? "—" : `Ø${p.dia} @ ${s}`);
+                      return (
+                        <tr key={p.id} onClick={() => { setSelId(p.id); setShowWork(false); }} className="cursor-pointer" style={{ background: on ? C.brassBg : "transparent", boxShadow: on ? `inset 3px 0 0 ${C.brass}` : "none" }}>
+                          <td style={{ ...td, font: `700 13.5px ${UI}`, color: on ? C.brass : C.ink, textAlign: "left" }}>{p.name}</td>
+                          <td style={{ ...td, font: `500 13px ${UI}`, color: C.ink2, textAlign: "left" }}>{COEF[p.type].label.replace(" panel", "")}</td>
+                          <td style={td}>{v(p.B)}</td><td style={td}>{v(p.D)}</td><td style={td}>{v(p.fck)}</td><td style={td}>{v(p.live)}</td>
+                          <td style={td}>{bar(r.sTop)}</td><td style={td}>{bar(r.sMid)}</td>
+                          <td style={{ ...td, font: `600 12.5px ${UI}`, color: st[1], textAlign: "left" }}>● {st[0]}</td>
+                          <td style={{ ...td, width: 32 }}><span onClick={(e) => { e.stopPropagation(); del(p.id); }} title="Remove panel" style={{ color: C.inkDim, fontSize: 16 }}>×</span></td>
+                        </tr>); })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      <div className={"mx-auto px-4 py-4 grid grid-cols-1 gap-4 items-start " + (sel ? "lg:grid-cols-[400px_minmax(0,1fr)]" : "")} style={{ maxWidth: 1320 }}>
+        {/* LEFT — compact input form for the selected panel */}
+        <aside className="space-y-3 lg:sticky lg:top-4">
+          {sel && (
+            <div className="cs-card rounded-xl px-4 py-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+              <Field compact text label="Panel name" value={sel.name} onChange={(v) => upd(sel.id, "name", v)} />
+              <div className="grid grid-cols-2 gap-1.5 mt-1.5 mb-1">
+                {Object.entries(COEF).map(([k, co]) => { const on = sel.type === k; return (
+                  <button key={k} onClick={() => upd(sel.id, "type", k)} className="cs-cond rounded-lg px-2 py-1.5" style={{ background: on ? C.brassBg : C.surf2, border: `1px solid ${on ? C.brass : C.line}`, font: `700 12px ${UI}`, color: on ? C.brass : C.ink2 }}>{co.label}</button>
+                ); })}
+              </div>
+              <FormSec title="Geometry & grade" />
+              <Field compact label="Span" hint="L" unit="m" value={sel.B} onChange={(v) => upd(sel.id, "B", v)} />
+              <Field compact label="Thickness" hint="D" unit="mm" value={sel.D} onChange={(v) => upd(sel.id, "D", v)} />
+              <Field compact label="Concrete grade" hint="fck" unit="N/mm²" value={sel.fck} onChange={(v) => upd(sel.id, "fck", v)} />
+              <Field compact label="Earth fill / finish" hint="E" unit="mm" value={sel.E} onChange={(v) => upd(sel.id, "E", v)} />
+              <FormSec title="Loads & bar" />
+              <Field compact label="Live load" hint="LL" unit="kN/m²" value={sel.live} onChange={(v) => upd(sel.id, "live", v)} />
+              <Field compact label="Fire tender load" hint="Ff" unit="kN/m²" value={sel.fire} onChange={(v) => upd(sel.id, "fire", v)} />
+              <Field compact label="Bar diameter" hint="Ø" unit="mm" value={sel.dia} onChange={(v) => upd(sel.id, "dia", v)} />
+              <FormSec title="Materials & factors" right={<button onClick={() => setShowAssume((v) => !v)} style={{ font: `600 11.5px ${UI}`, color: C.brass }}>{showAssume ? "fewer" : "all factors"}</button>} />
+              <Field compact label="Steel grade" hint="fy" unit="N/mm²" value={g.fy} onChange={(v) => gField("fy", v)} />
+              <Field compact label="Cover to c/c" unit="mm" value={g.cover} onChange={(v) => gField("cover", v)} />
+              {showAssume && <>
+                <Field compact label="Concrete unit weight" hint="γc" unit="kN/m³" value={g.gammaC} onChange={(v) => gField("gammaC", v)} />
+                <Field compact label="Fill unit weight" hint="γf" unit="kN/m³" value={g.gammaFill} onChange={(v) => gField("gammaFill", v)} />
+                <Field compact label="Extra dead load" hint="w₀" unit="kN/m²" value={g.addDL} onChange={(v) => gField("addDL", v)} />
+                <Field compact label="Minimum steel" unit="%" value={g.minPct} onChange={(v) => gField("minPct", v)} />
+                <Field compact label="Load factor — permanent" value={g.lfDL} onChange={(v) => gField("lfDL", v)} />
+                <Field compact label="Load factor — temporary" value={g.lfLL} onChange={(v) => gField("lfLL", v)} />
+              </>}
+              <div style={{ font: `400 11px ${UI}`, color: C.inkDim, marginTop: 6 }}>Defaults match the source sheet (fy 550, γc 25, γf 20, w₀ 0.132).</div>
+            </div>
+          )}
         </aside>
 
-        {/* center */}
-        <main className="grow min-w-0">
-          <div className="cs-card rounded-xl relative" style={{ backgroundColor: C.surf, backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${C.surf} 0%, ${C.surf2} 100%)`, border: `1px solid ${C.line}`, minHeight: 240, overflow: "hidden" }}>
-            {sel ? (
-              <div className="p-4">
+        {/* RIGHT — drawing + results */}
+        <main className="min-w-0">
+          {sel ? (
+            <>
+              <div className="cs-card rounded-xl px-4 pt-3 pb-1" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
                 <div className="flex items-start justify-between">
-                  <div><div style={{ font: `400 22px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COEF[sel.type].label}</div></div>
+                  <div><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COEF[sel.type].label}</div></div>
                   {R && !R.incomplete && (
                     <VerdictBadge verdict={R.inadequate ? "INADEQUATE" : "DESIGNED"} label={R.inadequate ? "SECTION INADEQUATE" : "DESIGNED"} size="lg" />
                   )}
                 </div>
-                <div style={{ height: 190, marginTop: 4 }}><SlabSection p={sel} res={R} /></div>
+                <div style={{ height: 160 }}><SlabSection p={sel} res={R} /></div>
               </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6" style={{ minHeight: 240 }}>
-                <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a one-way slab panel</div>
-                <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a panel, choose edge or internal, then enter span, thickness and loads.</div>
-                <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}`, boxShadow: `0 3px 14px ${C.cyanDeep}3a` }}>+ Add your first panel</button>
-              </div>
-            )}
-          </div>
+          {R && !R.incomplete && (() => {
+            const nv = (v, d) => (v == null || Number.isNaN(v) ? "—" : fmt(v, d));
+            const rows = [
+              ["Bending moment", "M", "kN·m/m", nv(R.topM, 2), nv(R.midM, 2)],
+              ["Moment factor", "Mu/bd²", "N/mm²", nv(R.topBd2, 3), nv(R.midBd2, 3)],
+              ["Steel percentage", "pt", "%", nv(R.ptTop, 3), nv(R.ptMid, 3)],
+              ["Steel area required", "Ast", "mm²/m", nv(R.AstTop, 1), nv(R.AstMid, 1)],
+              ["Bar spacing", "S", "mm c/c", R.sTop ?? "—", R.sMid ?? "—"],
+            ];
+            const th = { font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 1, textTransform: "uppercase", padding: "8px 14px", textAlign: "right" };
+            const td = { font: `600 14px ${MONO}`, color: C.ink, padding: "8px 14px", textAlign: "right", borderTop: `1px solid ${C.line}` };
+            return (
+              <div className="mt-3 space-y-3 csin" key={sel.id}>
+                {/* 1 — the answer */}
+                {R.inadequate ? (
+                  <div className="px-5 py-4 rounded-xl" style={{ background: `${C.red}12`, border: `1px solid ${C.red}44`, color: C.red, font: `600 14px ${UI}` }}>
+                    Section inadequate — Mu/bd² exceeds the singly-reinforced limit for M{sel.fck}. Increase thickness or concrete grade.
+                  </div>
+                ) : (
+                  <div className="cs-card rounded-xl grid grid-cols-1 sm:grid-cols-2" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                    {[["Top steel", "at support", C.red, R.sTop, R.AstTop], ["Bottom steel", "at mid-span", C.cyanDeep, R.sMid, R.AstMid]].map(([t, where, col, s, ast], i) => (
+                      <div key={t} className="px-5 py-4" style={{ borderLeft: i ? `1px solid ${C.line}` : "none" }}>
+                        <div style={{ font: `600 13px ${UI}`, color: C.inkDim }}><span style={{ color: col }}>●</span> {t} <span style={{ fontWeight: 400 }}>· {where}</span></div>
+                        <div style={{ font: `700 30px ${MONO}`, color: C.ink, marginTop: 2 }}>Ø{sel.dia} @ {s ?? "—"}<span style={{ font: `500 14px ${MONO}`, color: C.inkDim }}> mm c/c</span></div>
+                        <div style={{ font: `400 12.5px ${UI}`, color: C.inkDim }}>Ast required {nv(ast, 1)} mm²/m</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-          {R && !R.incomplete && (
-            <div className="mt-3 csin" key={sel.id}>
-              <Group title="Design loads" accent={C.teal} cols="grid-cols-1 sm:grid-cols-3">
-                <RVal accent={C.teal} name="Permanent load" sym="w" val={fmt(R.F, 3)} unit="kN/m²" />
-                <RVal accent={C.teal} name="Factored permanent load" sym="wp" val={fmt(R.wp, 3)} unit="kN/m²" />
-                <RVal accent={C.teal} name="Factored temporary load" sym="wt" val={fmt(R.wt, 3)} unit="kN/m²" />
-              </Group>
-              <Group title="Bending moments (M = α·w·L²)" accent={C.violet} cols="grid-cols-1 sm:grid-cols-2">
-                <RVal accent={C.violet} name="Support moment (top / hogging)" sym="M⁻" val={fmt(R.topM, 3)} unit="kN·m/m" />
-                <RVal accent={C.violet} name="Span moment (bottom / sagging)" sym="M⁺" val={fmt(R.midM, 3)} unit="kN·m/m" />
-              </Group>
-              <Group title="Design moment factor  Mu / b·d²  (drives pt)" accent={C.amber} cols="grid-cols-1 sm:grid-cols-2">
-                <RVal accent={C.amber} name="Moment factor at support (top)" sym="Mu/bd²" val={fmt(R.topBd2, 4)} unit="N/mm²" />
-                <RVal accent={C.amber} name="Moment factor at span (bottom)" sym="Mu/bd²" val={fmt(R.midBd2, 4)} unit="N/mm²" />
-              </Group>
-              <Group title="Reinforcement required  (Ast = pt · b · d / 100)" accent={C.brass} cols="grid-cols-2 sm:grid-cols-4">
-                <RVal accent={C.brass} name="Steel percentage at top" sym="pt" val={Number.isNaN(R.ptTop) ? "—" : fmt(R.ptTop, 4)} unit="%" />
-                <RVal accent={C.brass} name="Steel area at top" sym="Ast" val={Number.isNaN(R.AstTop) ? "—" : fmt(R.AstTop, 1)} unit="mm²/m" color={R.inadequate ? C.red : undefined} />
-                <RVal accent={C.brass} name="Steel percentage at bottom" sym="pt" val={Number.isNaN(R.ptMid) ? "—" : fmt(R.ptMid, 4)} unit="%" />
-                <RVal accent={C.brass} name="Steel area at bottom" sym="Ast" val={Number.isNaN(R.AstMid) ? "—" : fmt(R.AstMid, 1)} unit="mm²/m" />
-              </Group>
-              <Group title="Bar spacing (derived from bar diameter)" accent={C.ink2} cols="grid-cols-1 sm:grid-cols-2">
-                <RVal accent={C.ink2} name={`Top steel spacing  (Ø ${sel.dia} mm)`} val={R.sTop ?? "—"} unit="mm c/c" />
-                <RVal accent={C.ink2} name={`Bottom steel spacing  (Ø ${sel.dia} mm)`} val={R.sMid ?? "—"} unit="mm c/c" />
-              </Group>
-              {R.inadequate && <div className="mt-3 px-4 py-3 rounded-lg" style={{ background: `${C.red}12`, border: `1px solid ${C.red}44`, color: C.red, font: `600 13px ${UI}` }}>Mu/bd² exceeds the singly-reinforced limit for M{sel.fck} — increase thickness or grade (the sheet would show an error here).</div>}
-              <div className="mt-4">
-                <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
-                {showWork && <div className="mt-2 csin"><FormulaLedger F={F} ready={kReady} /></div>}
+                {/* 2 — key numbers, top vs bottom */}
+                <div className="cs-card rounded-xl overflow-x-auto" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
+                  <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                    <thead><tr><th style={{ ...th, textAlign: "left" }}>Design summary</th><th style={th}>Top · support</th><th style={th}>Bottom · span</th><th style={{ ...th, textAlign: "left" }}>Unit</th></tr></thead>
+                    <tbody>
+                      {rows.map(([name, sym, unit, a, b]) => (
+                        <tr key={name}>
+                          <td style={{ ...td, font: `500 13.5px ${UI}`, color: C.ink2, textAlign: "left" }}>{name} <span style={{ font: `600 12px ${MONO}`, color: C.brass }}>{sym}</span></td>
+                          <td style={td}>{a}</td><td style={td}>{b}</td>
+                          <td style={{ ...td, font: `500 12px ${MONO}`, color: C.inkDim, textAlign: "left" }}>{unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 3 — everything else, on demand */}
+                <div>
+                  <button onClick={() => setShowWork((v) => !v)} className="cs-btn px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}`, color: C.ink2, background: C.surf, font: `600 12px ${UI}` }}>{showWork ? "Hide calculation details" : "Show calculation details"}</button>
+                  {showWork && (
+                    <div className="mt-2 csin">
+                      <div style={{ font: `400 13px ${UI}`, color: C.ink2, marginBottom: 8 }}>
+                        Loads: w = {fmt(R.F, 3)} · w<sub>p</sub> = {fmt(R.wp, 3)} · w<sub>t</sub> = {fmt(R.wt, 3)} kN/m² · d = {fmt(R.d, 0)} mm
+                      </div>
+                      <FormulaLedger F={F} ready={kReady} />
+                    </div>
+                  )}
+                </div>
               </div>
+            );
+          })()}
+          {R?.incomplete && <div className="mt-3 px-4 py-6 rounded text-center" style={{ background: C.surf, border: `1px dashed ${C.line}`, color: C.inkDim, font: `500 14px ${UI}` }}>Enter {R.missing.join(", ")} on the left — results appear once all inputs are filled.</div>}
+            </>
+          ) : (
+            <div className="cs-card rounded-xl flex flex-col items-center justify-center text-center px-6" style={{ background: C.surf, border: `1px solid ${C.line}`, minHeight: 280 }}>
+              <div style={{ font: `400 24px ${SERIF}`, color: C.ink }}>Start a one-way slab panel</div>
+              <div style={{ font: `400 14px ${UI}`, color: C.inkDim, maxWidth: 380, marginTop: 6, lineHeight: 1.5 }}>Add a panel, choose edge or internal, then fill in span, thickness and loads on the left.</div>
+              <button onClick={add} className="cs-btn mt-5 px-5 py-2.5 rounded-lg" style={{ background: C.brass, color: "#fff", font: `700 14px ${UI}` }}>+ Add your first panel</button>
             </div>
           )}
-          {R?.incomplete && <div className="mt-3 px-4 py-6 rounded text-center" style={{ background: C.surf, border: `1px dashed ${C.line}`, color: C.inkDim, font: `500 14px ${UI}` }}>Enter {R.missing.join(", ")} on the right — results build as you type.</div>}
         </main>
-
-        {/* inputs */}
-        {sel && (
-          <aside className="lg:w-72 shrink-0 space-y-4">
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="PANEL" accent={C.brass} />
-              <Field text label="Panel name" value={sel.name} onChange={(v) => upd(sel.id, "name", v)} />
-              <div className="grid grid-cols-2 gap-1.5 mt-2">
-                {Object.entries(COEF).map(([k, co]) => { const on = sel.type === k; return (
-                  <button key={k} onClick={() => upd(sel.id, "type", k)} className="cs-cond rounded-lg px-2 py-2" style={{ background: on ? C.brassBg : C.surf2, border: `1px solid ${on ? C.brass : C.line}`, font: `700 12px ${UI}`, color: on ? C.brass : C.ink2 }}>{co.label}</button>
-                ); })}
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="GEOMETRY & GRADE" accent={C.teal} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Span" hint="L" unit="m" value={sel.B} onChange={(v) => upd(sel.id, "B", v)} />
-                <Field label="Thickness" hint="D" unit="mm" value={sel.D} onChange={(v) => upd(sel.id, "D", v)} />
-                <Field label="Concrete grade" hint="fck" unit="N/mm²" value={sel.fck} onChange={(v) => upd(sel.id, "fck", v)} />
-                <Field label="Earth fill/finish" hint="E" unit="mm" value={sel.E} onChange={(v) => upd(sel.id, "E", v)} />
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <SecHead label="LOADS & BAR" accent={C.violet} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Live load" hint="LL" unit="kN/m²" value={sel.live} onChange={(v) => upd(sel.id, "live", v)} />
-                <Field label="Fire tender load" hint="Ff" unit="kN/m²" value={sel.fire} onChange={(v) => upd(sel.id, "fire", v)} />
-                <Field label="Bar diameter" hint="Ø" unit="mm" value={sel.dia} onChange={(v) => upd(sel.id, "dia", v)} />
-              </div>
-            </div>
-            <div className="cs-card rounded-xl p-3" style={{ background: C.surf, border: `1px solid ${C.line}` }}>
-              <div className="flex items-center justify-between">
-                <SecHead label="MATERIALS & FACTORS" accent={C.green} />
-                <button onClick={() => setShowAssume((v) => !v)} style={{ font: `600 11px ${UI}`, color: C.inkDim }}>{showAssume ? "less" : "more"}</button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Steel grade" hint="fy" unit="N/mm²" value={g.fy} onChange={(v) => gField("fy", v)} />
-                <Field label="Cover to c/c" unit="mm" value={g.cover} onChange={(v) => gField("cover", v)} />
-              </div>
-              {showAssume && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Field label="Concrete unit weight" hint="γc" unit="kN/m³" value={g.gammaC} onChange={(v) => gField("gammaC", v)} />
-                  <Field label="Fill unit weight" hint="γf" unit="kN/m³" value={g.gammaFill} onChange={(v) => gField("gammaFill", v)} />
-                  <Field label="Extra dead load" hint="w₀" unit="kN/m²" value={g.addDL} onChange={(v) => gField("addDL", v)} />
-                  <Field label="Minimum steel" unit="%" value={g.minPct} onChange={(v) => gField("minPct", v)} />
-                  <Field label="Load factor — permanent" value={g.lfDL} onChange={(v) => gField("lfDL", v)} />
-                  <Field label="Load factor — temporary" value={g.lfLL} onChange={(v) => gField("lfLL", v)} />
-                </div>
-              )}
-              <div style={{ font: `400 10.5px ${MONO}`, color: C.inkDim, marginTop: 8, lineHeight: 1.5 }}>Defaults match the source sheet (fy 550, γc 25, γf 20, w₀ 0.132).</div>
-            </div>
-          </aside>
-        )}
       </div>
+    </div>
+  );
+}
+
+/* small section divider inside the compact form */
+function FormSec({ title, right }) {
+  return (
+    <div className="flex items-center justify-between" style={{ margin: "12px 0 2px", paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+      <span style={{ font: `700 11px ${UI}`, color: C.inkDim, letterSpacing: 1, textTransform: "uppercase" }}>{title}</span>
+      {right}
     </div>
   );
 }

@@ -214,30 +214,30 @@ export const GLOBAL_CSS = `
     --focus: rgba(34,211,238,.40);
   }
 
-  @keyframes csin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-  .csin{animation:csin .5s var(--spring) both}
+  @keyframes csin{from{opacity:0}to{opacity:1}}
+  .csin{animation:csin .2s ease-out both}
   @keyframes cs-fade-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   .cs-fade-up{animation:cs-fade-up .55s var(--spring) both}
   @keyframes cs-pulse{0%{transform:scale(1);opacity:.5}100%{transform:scale(2.6);opacity:0}}
   @keyframes cs-pop{0%{opacity:0;transform:scale(.7)}60%{transform:scale(1.06)}100%{opacity:1;transform:scale(1)}}
-  .cs-pop{animation:cs-pop .42s var(--spring) both}
+  .cs-pop{}
 
-  .cs-bp{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:34px 34px}
+  .cs-bp{background-color:var(--bg)}
   .cs-card{box-shadow:var(--shadow-sm),var(--shadow-lg)}
   .cs-rval{transition:transform .18s var(--spring),box-shadow .2s ease,border-color .18s ease}
-  .cs-rval:hover{transform:translateY(-3px);box-shadow:var(--hover-shadow),0 0 0 1px var(--glow)}
+  
   .cs-field{transition:border-color .15s,box-shadow .15s}
   .cs-field:focus-within{border-color:var(--accent-bright);box-shadow:0 0 0 3px var(--focus)}
   .cs-tile{transition:transform .2s var(--spring),box-shadow .22s ease,border-color .18s ease}
-  .cs-tile:hover:not(:disabled){transform:translateY(-4px);box-shadow:var(--hover-shadow),0 0 0 1px var(--glow);border-color:var(--accent-bright)}
-  .cs-tile:active:not(:disabled){transform:translateY(-1px)}
+  .cs-tile:hover:not(:disabled){border-color:var(--accent)}
+  
   .cs-panel{transition:transform .14s var(--spring),border-color .15s ease}
-  .cs-panel:hover{transform:translateX(2px)}
+  
   .cs-cond{transition:transform .12s var(--spring),border-color .15s,background .15s}
-  .cs-cond:hover{transform:translateY(-1px)}
+  
   .cs-btn{transition:transform .12s var(--spring),box-shadow .2s ease,filter .2s ease}
-  .cs-btn:hover:not(:disabled){filter:brightness(1.05);box-shadow:0 6px 18px var(--glow)}
-  .cs-btn:active:not(:disabled){transform:translateY(1px)}
+  .cs-btn:hover:not(:disabled){filter:brightness(.97)}
+  
   input.cs-in::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
 
   @media(prefers-reduced-motion:reduce){

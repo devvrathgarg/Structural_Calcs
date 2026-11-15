@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import * as XLSX from "xlsx";
 import { C, UI, MONO, SERIF, fmt, sColor, useSharedStyles, useThemeMode } from "../theme.js";
-import { Field, RVal, Group, SecHead, FormulaLedger, TeX, useKaTeX, ThemeToggle, VerdictBadge } from "../components/ui.jsx";
+import { Field, RVal, Group, SecHead, FormulaLedger, TeX, useKaTeX, ThemeToggle, VerdictBadge, countBlank, blankMsg } from "../components/ui.jsx";
 import Feedback from "../components/Feedback.jsx";
 
 const HX = (s) => parseInt(String(s).replace("#", ""), 16); // "#RRGGBB" -> 0xRRGGBB for three.js
@@ -22,6 +22,8 @@ function interpCoef(t, r) { if (!t) return null; const rc = Math.min(Math.max(r,
 /* ===== engine — reproduces the firm's spreadsheet exactly ===== */
 function computePanel(p, g) {
   const { cond, Lx, Ly, w, D, dia, sProv } = p, { fck, fy, cover, minPct } = g;
+  const nb = countBlank(p, ["Lx", "Ly", "w", "D", "dia", "sProv"]) + countBlank(g, ["fck", "fy", "cover", "minPct"]);
+  if (nb) return { incomplete: true, missing: blankMsg(nb), verdict: "-" };
   if (!(Lx > 0 && Ly > 0)) return { incomplete: true, missing: [!Lx && "Lx", !Ly && "Ly"].filter(Boolean), verdict: "-" };
   const r = Ly / Lx;
   if (!(w > 0)) return { incomplete: true, missing: ["load w"], r, verdict: "-" };
@@ -191,7 +193,7 @@ export default function CivilSpaceCalc({ onBack }) {
   const doneN = panels.filter((p) => !results[p.id].incomplete).length;
 
   const upd = (id, k, v) => setPanels((ps) => ps.map((p) => (p.id === id ? { ...p, [k]: v } : p)));
-  const add = () => { const id = nextId.current++; setPanels((ps) => [...ps, { id, name: "S" + id, cond: 4, Lx: 0, Ly: 0, w: 0, D: 150, dia: 8, sProv: 0 }]); setSelId(id); setShowWork(false); };
+  const add = () => { const id = nextId.current++; setPanels((ps) => [...ps, { id, name: "S" + id, cond: 4, Lx: null, Ly: null, w: null, D: null, dia: null, sProv: null }]); setSelId(id); setShowWork(false); };
   const del = (id) => { setPanels((ps) => ps.filter((p) => p.id !== id)); if (selId === id) setSelId((panels.find((p) => p.id !== id) || {}).id ?? null); };
 
   const exportXlsx = () => {
@@ -222,9 +224,9 @@ export default function CivilSpaceCalc({ onBack }) {
             <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: C.surf2, border: `1px solid ${C.line}` }}>
               <svg width="26" height="26" viewBox="0 0 34 34"><rect x="3" y="3" width="28" height="28" rx="2" fill="none" stroke={C.cyanDeep} strokeWidth="2.4" /><line x1="3" y1="12" x2="31" y2="12" stroke={C.cyanDeep} strokeWidth="1.6" /><line x1="12" y1="12" x2="12" y2="31" stroke={C.cyan} strokeWidth="1.6" /><circle cx="12" cy="12" r="2.4" fill={C.cyan} /></svg>
             </div>
-            <div><div style={{ font: `400 21px ${SERIF}`, color: C.ink, letterSpacing: "-.01em" }}>CivilSpace <span style={{ color: C.cyan, fontStyle: "italic" }}>Calc</span></div><div style={{ font: `500 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>TWO-WAY SLAB · IS 456:2000</div></div>
+            <div><div style={{ font: `400 21px ${SERIF}`, color: C.ink, letterSpacing: "-.01em" }}>CivilSpace Calc</div><div style={{ font: `400 12px ${UI}`, color: C.inkDim }}>TWO-WAY SLAB · IS 456:2000</div></div>
           </div>
-          <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}><span style={{ font: `600 10px ${MONO}`, color: C.inkDim }}>PROJECT</span><input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 170, background: "transparent" }} /></div>
+          <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg" style={{ background: C.surf2, border: `1px solid ${C.line}` }}><span style={{ font: `500 12px ${UI}`, color: C.inkDim }}>Project</span><input value={project} onChange={(e) => setProject(e.target.value)} placeholder="untitled" className="outline-none" style={{ font: `600 14px ${MONO}`, color: C.ink, minWidth: 170, background: "transparent" }} /></div>
           <div className="ml-auto flex items-center gap-2">
             <Feedback context="two-way-slab" inline />
             <button onClick={exportXlsx} disabled={!panels.length} className="cs-btn px-3.5 py-2 rounded-lg" style={btn({ border: `1px solid ${panels.length ? C.brass : C.line}`, color: panels.length ? C.brass : C.inkDim, background: C.surf })}>Export Excel</button>
@@ -236,7 +238,7 @@ export default function CivilSpaceCalc({ onBack }) {
 
       <div className="mx-auto px-4 py-4 flex flex-col lg:flex-row gap-4" style={{ maxWidth: 1480 }}>
         <aside className="lg:w-52 shrink-0">
-          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 10px ${MONO}`, color: C.inkDim, letterSpacing: 1 }}>PANELS</span>{panels.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} pass</span>}</div>
+          <div className="flex items-center justify-between mb-2"><span style={{ font: `600 12px ${UI}`, color: C.inkDim }}>Panels</span>{panels.length > 0 && <span style={{ font: `600 11px ${MONO}`, color: C.inkDim }}>{safeN}/{doneN} pass</span>}</div>
           <div className="space-y-1.5">
             {panels.map((p) => { const r = results[p.id], on = selId === p.id; return (
               <div key={p.id} onClick={() => { setSelId(p.id); setShowWork(false); }} className={"cs-panel px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2" + (on ? " cs-card" : "")} style={{ background: on ? C.surf : C.surf, borderLeft: `3px solid ${on ? C.brass : sColor(r.verdict)}`, border: `1px solid ${on ? C.brass : C.line}`, borderLeftWidth: 3, borderLeftColor: on ? C.brass : sColor(r.verdict) }}>
@@ -259,7 +261,7 @@ export default function CivilSpaceCalc({ onBack }) {
               </div>
             )}
             {sel && (<>
-              <div className="absolute top-3 left-4"><div style={{ font: `400 21px ${SERIF}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COND_NAMES[sel.cond]}</div></div>
+              <div className="absolute top-3 left-4"><div style={{ font: `700 18px ${UI}`, color: C.ink }}>{sel.name}</div><div style={{ font: `500 11px ${MONO}`, color: C.inkDim }}>{COND_NAMES[sel.cond]}</div></div>
               <div className="absolute top-3 right-4">{R?.incomplete ? <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: C.surf, color: C.inkDim, font: `600 12px ${MONO}`, border: `1px solid ${C.line}` }}>enter {R.missing.join(", ")}</span> : <VerdictBadge verdict={R.verdict} label={`${R.verdict}${R.tag ? " · " + R.tag : ""}`} size="lg" />}</div>
               <div className="absolute bottom-3 left-4 flex gap-4" style={{ font: `600 11px ${MONO}`, color: C.inkDim }}><span>Lx <b style={{ color: C.ink }}>{sel.Lx || "-"}</b> m</span><span>Ly <b style={{ color: C.ink }}>{sel.Ly || "-"}</b> m</span><span>D <b style={{ color: C.ink }}>{sel.D || "-"}</b> mm</span></div>
               <div className="absolute bottom-3 right-4 flex items-center gap-3" style={{ font: `500 10px ${MONO}`, color: C.inkDim }}><span className="flex items-center gap-1"><span style={{ width: 12, height: 3, background: C.brass, display: "inline-block", borderRadius: 2 }} />supported edge</span><span className="flex items-center gap-1"><span style={{ width: 6, height: 6, background: C.teal, borderRadius: 6, display: "inline-block" }} />free edge</span></div>
